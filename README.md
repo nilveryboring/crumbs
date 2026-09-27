@@ -2,7 +2,7 @@
 
 **Find what your AI agents left behind.**
 
-[Website](https://www.nilni.com/crumbs) · [Download](https://github.com/nilveryboring/crumbs/releases/latest) · [Feedback](https://www.nilni.com/crumbs/feedback) · [Privacy](https://www.nilni.com/crumbs/privacy)
+[Website](https://www.nilni.com/crumbs) · [Download](https://github.com/nilveryboring/crumbs/releases/latest) · [Feedback](https://www.makeform.ai/f/z6g4pJJB) · [Privacy](https://www.nilni.com/crumbs/privacy)
 
 ![Crumbs showing agent worktrees, node_modules and build output with a verdict and the reason for each](docs/screenshot.png)
 
@@ -141,7 +141,7 @@ walk your code folders or ask git about them.
 
 Found a verdict that looks wrong, or a leftover Crumbs misses? Use
 **Help → Send Feedback…** in the app, the
-[feedback form](https://www.nilni.com/crumbs/feedback) (built with
+[feedback form](https://www.makeform.ai/f/z6g4pJJB) (built with
 [Makeform](https://www.makeform.ai/?ref=crumbs)), or open an issue.
 
 ## License
