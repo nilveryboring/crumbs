@@ -1,0 +1,262 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Crumbs video</title>
+<style>
+  :root {
+    --cream: #fff8ec; --paper: #fdf0da; --ink: #2b1a0e; --muted: #6b523d; --dough: #e9ae5e; --accent: #b0652a;
+    --safe: #34a853; --check: #f29900; --keep: #d93025;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; overflow: hidden; background: var(--cream); }
+  body { font-family: -apple-system, "SF Pro Display", "Helvetica Neue", sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+  .scene { position: absolute; inset: 0; opacity: 0; }
+  .center { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+  .blob { position: absolute; border-radius: 50%; }
+  h1 { font-size: 104px; font-weight: 900; letter-spacing: -3px; line-height: 1.02; }
+  h2 { font-size: 76px; font-weight: 850; letter-spacing: -2px; line-height: 1.05; }
+  .sub { font-size: 40px; color: var(--muted); font-weight: 500; margin-top: 26px; }
+  .chip { position: absolute; left: 50%; display: flex; gap: 28px; align-items: center; padding: 20px 30px;
+          background: #fff; border: 2px solid rgba(43,26,14,.08); border-radius: 18px; box-shadow: 0 10px 30px rgba(107,61,22,.10);
+          font: 600 30px ui-monospace, "SF Mono", Menlo, monospace; white-space: nowrap; }
+  .chip b { font-family: -apple-system, sans-serif; font-weight: 800; color: var(--accent); }
+  .num { font-size: 260px; font-weight: 900; letter-spacing: -10px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .window { position: absolute; border-radius: 22px; overflow: hidden; box-shadow: 0 40px 100px rgba(107,61,22,.30), 0 0 0 1px rgba(43,26,14,.08); background: #fff; }
+  .window img { display: block; width: 100%; }
+  .hl { position: absolute; border-radius: 12px; opacity: 0; }
+  .card { position: absolute; left: 50%; bottom: 70px; width: 1180px; margin-left: -590px; padding: 30px 40px; border-radius: 24px;
+          background: rgba(43,26,14,.94); color: #fff8ec; display: flex; align-items: center; gap: 30px; opacity: 0;
+          box-shadow: 0 24px 60px rgba(0,0,0,.25); }
+  .card .v { font-size: 30px; font-weight: 900; letter-spacing: 2px; padding: 10px 22px; border-radius: 999px; color: #fff; flex: none; }
+  .card .r { font-size: 38px; font-weight: 700; line-height: 1.25; }
+  .tile { position: absolute; width: 760px; height: 190px; border-radius: 26px; background: #fff; padding: 34px 40px;
+          border: 2px solid rgba(43,26,14,.08); box-shadow: 0 16px 40px rgba(107,61,22,.12); display: flex; gap: 28px; align-items: center; }
+  .tile .dot { width: 26px; height: 26px; border-radius: 50%; flex: none; }
+  .tile .t { font-size: 40px; font-weight: 850; }
+  .tile .d { font-size: 27px; color: var(--muted); margin-top: 6px; font-weight: 500; }
+  .caption { position: absolute; left: 0; right: 0; top: 70px; text-align: center; }
+  .code { display: inline-block; margin-top: 44px; padding: 22px 36px; border-radius: 16px; background: var(--ink); color: #f4e3c8;
+          font: 600 36px ui-monospace, "SF Mono", Menlo, monospace; }
+  .crumb { position: absolute; border-radius: 50%; background: var(--dough); }
+</style>
+</head>
+<body>
+
+<!-- 1: the problem -->
+<section class="scene" id="s1">
+  <div class="blob" style="width:760px;height:760px;right:-240px;top:-300px;background:#f4d7a6;opacity:.55"></div>
+  <div class="caption" style="top:110px"><h2 id="s1t">Every AI agent task leaves<br>something behind.</h2></div>
+  <div id="chips"></div>
+</section>
+
+<!-- 2: the number -->
+<section class="scene center" id="s2">
+  <div class="sub" id="s2a" style="font-size:52px;color:var(--ink);font-weight:800;margin:0">58 forgotten worktrees. 10 more from Codex.</div>
+  <div class="num" id="s2n" style="margin-top:30px">0 GB</div>
+  <div class="sub" id="s2b">of leftovers on one Mac</div>
+</section>
+
+<!-- 3: meet Crumbs -->
+<section class="scene center" id="s3">
+  <div class="blob" style="width:900px;height:900px;left:510px;top:90px;background:#f4d7a6;opacity:.45" id="s3blob"></div>
+  <img src="shots/icon.png" id="s3i" style="width:260px;height:260px;position:relative">
+  <h1 id="s3t" style="margin-top:34px;position:relative">Meet Crumbs.</h1>
+  <div class="sub" id="s3s" style="position:relative">It finds what your AI agents left behind,<br>and tells you why each one is safe to trash.</div>
+</section>
+
+<!-- 4: the app, verdicts -->
+<section class="scene" id="s4">
+  <div class="window" id="s4w" style="left:180px;top:60px;width:1560px"><img src="shots/main.png"></div>
+  <div class="hl" id="hl0" style="border:5px solid var(--safe);background:rgba(52,168,83,.10)"></div>
+  <div class="hl" id="hl1" style="border:5px solid var(--check);background:rgba(242,153,0,.10)"></div>
+  <div class="hl" id="hl2" style="border:5px solid var(--keep);background:rgba(217,48,37,.10)"></div>
+  <div class="card" id="c0"><span class="v" style="background:var(--safe)">SAFE</span><span class="r">Clean checkout, already merged. Untouched for 21 days.</span></div>
+  <div class="card" id="c1"><span class="v" style="background:var(--check)">CHECK</span><span class="r">Holds an .env.local that differs from the main checkout.</span></div>
+  <div class="card" id="c2"><span class="v" style="background:var(--keep)">KEEP</span><span class="r">2 uncommitted files would be lost.</span></div>
+</section>
+
+<!-- 5: checks -->
+<section class="scene" id="s5">
+  <div class="caption"><h2 id="s5t">It checks before it trusts.</h2></div>
+  <div class="tile" id="t0" style="left:180px;top:330px"><span class="dot" style="background:var(--keep)"></span><div><div class="t">Running processes</div><div class="d">An agent or dev server inside? Keep.</div></div></div>
+  <div class="tile" id="t1" style="left:980px;top:330px"><span class="dot" style="background:var(--keep)"></span><div><div class="t">Uncommitted work</div><div class="d">Modified or untracked files? Keep.</div></div></div>
+  <div class="tile" id="t2" style="left:180px;top:580px"><span class="dot" style="background:var(--check)"></span><div><div class="t">Secrets</div><div class="d">A unique .env or key file? Look first.</div></div></div>
+  <div class="tile" id="t3" style="left:980px;top:580px"><span class="dot" style="background:var(--check)"></span><div><div class="t">Recent changes</div><div class="d">Touched lately? It waits, your call how long.</div></div></div>
+  <div class="caption" style="top:860px"><div class="sub" id="s5s" style="margin:0">Unmerged branch? Still safe: the branch stays in your repo.</div></div>
+</section>
+
+<!-- 6: trash -->
+<section class="scene" id="s6">
+  <div class="window" id="s6w" style="left:300px;top:170px;width:1320px"><img src="shots/trashed.png"></div>
+  <div class="caption" style="top:48px"><h2 id="s6t" style="font-size:62px">Nothing is deleted. It all goes to the Trash.</h2></div>
+  <div id="lens" style="position:absolute;left:50%;top:640px;width:1606px;margin-left:-803px;padding:30px 24px;border-radius:24px;background:#fff;
+       box-shadow:0 30px 80px rgba(107,61,22,.35),0 0 0 1px rgba(43,26,14,.08);opacity:0">
+    <div style="width:1558px;height:124px;background:url(shots/trashed.png) no-repeat;background-size:3432px auto;background-position:-588px -1903px"></div>
+  </div>
+</section>
+
+<!-- 7: end card -->
+<section class="scene center" id="s7">
+  <div class="blob" style="width:820px;height:820px;right:-260px;top:-320px;background:#f4d7a6;opacity:.55"></div>
+  <div class="blob" style="width:420px;height:420px;left:-120px;bottom:-160px;background:#e9ae5e;opacity:.18"></div>
+  <img src="shots/icon.png" id="s7i" style="width:200px;height:200px;position:relative">
+  <h1 id="s7t" style="margin-top:26px;position:relative">Crumbs</h1>
+  <div class="sub" id="s7s" style="position:relative;margin-top:14px">Free · Open source · 2 MB · macOS</div>
+  <div id="s7c" style="position:relative"><span class="code">brew install --cask nilveryboring/tap/crumbs</span></div>
+  <div class="sub" id="s7u" style="position:relative;margin-top:34px;color:var(--accent);font-weight:800">nilni.com/crumbs</div>
+</section>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const clamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => x < .5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2;
+const spring = (x) => x >= 1 ? 1 : 1 - Math.exp(-6 * x) * Math.cos(10 * x);
+// progress of t through [a, b], eased
+const p = (t, a, b, ease = easeOut) => ease(clamp((t - a) / (b - a)));
+
+// Scene windows [in, out]
+const S = { s1: [0, 4.6], s2: [4.6, 8.9], s3: [8.9, 12.4], s4: [12.4, 20.4], s5: [20.4, 25.4], s6: [25.4, 29.4], s7: [29.4, 34] };
+const FADE = .45;
+
+const chipData = [
+  ['~/Code/storefront/.claude/worktrees/agent-a4c2dd35', '3.4 GB'],
+  ['~/Code/storefront/node_modules', '2.4 GB'],
+  ['~/.codex/worktrees/7f3a/api-server', '2.2 GB'],
+  ['/private/tmp/storefront-release-0914', '5.3 GB'],
+  ['~/Code/marketing-site/.next', '4.1 GB'],
+  ['~/Code/dashboard/.claude/worktrees/agent-c19d77e0', '2.9 GB'],
+  ['~/Library/Developer/Xcode/DerivedData/Pocket-…', '6.0 GB'],
+];
+const chips = chipData.map(([path, size], i) => {
+  const el = document.createElement('div');
+  el.className = 'chip';
+  el.innerHTML = `<span>${path}</span><b>${size}</b>`;
+  $('chips').appendChild(el);
+  return el;
+});
+
+// falling crumbs for the end card
+const crumbs = Array.from({ length: 14 }, (_, i) => {
+  const el = document.createElement('div');
+  el.className = 'crumb';
+  const r = 10 + ((i * 37) % 18);
+  el.style.width = el.style.height = r + 'px';
+  el.dataset.x = 120 + ((i * 263) % 1680);
+  el.dataset.d = (i * 0.17) % 1.6;
+  el.dataset.v = 380 + ((i * 97) % 300);
+  $('s7').appendChild(el);
+  return el;
+});
+
+function sceneOpacity(t, [a, b], first, last) {
+  // Cross-dissolve: each fade straddles the boundary so neighbours overlap.
+  const fin = first ? 1 : p(t, a - FADE / 2, a + FADE / 2, easeInOut);
+  const fout = last ? 1 : 1 - p(t, b - FADE / 2, b + FADE / 2, easeInOut);
+  return Math.min(fin, fout);
+}
+
+function set(el, o, tx = 0, ty = 0, sc = 1) {
+  el.style.opacity = o;
+  el.style.transform = `translate(${tx}px, ${ty}px) scale(${sc})`;
+}
+
+// screenshot 2640px wide shown at 1560px
+const SHOT = 1560 / 2640;
+const rows = [601, 1056, 751]; // agent-a4c2dd35 (safe), api-server (check), fix-checkout-race (keep)
+
+function render(t) {
+  const names = Object.keys(S);
+  names.forEach((n, i) => { $(n).style.opacity = sceneOpacity(t, S[n], i === 0, i === names.length - 1); });
+
+  // 1
+  { const a = S.s1[0];
+    set($('s1t'), 1, 0, 0, 1 + .02 * p(t, a, a + 4.6, easeInOut));
+    chips.forEach((el, i) => {
+      const st = a + 1.0 + i * .42, k = p(t, st, st + .55);
+      const y = 330 + i * 98, x = -el.offsetWidth / 2 + (i % 2 ? 60 : -60);
+      el.style.opacity = k;
+      el.style.top = y + 'px';
+      el.style.transform = `translate(${x}px, ${-90 * (1 - k)}px) rotate(${(1 - k) * (i % 2 ? 4 : -4)}deg)`;
+    });
+  }
+  // 2
+  { const a = S.s2[0];
+    set($('s2a'), p(t, a, a + .6), 0, 20 * (1 - p(t, a, a + .6)));
+    const k = p(t, a + .9, a + 2.9, easeOut);
+    $('s2n').textContent = Math.round(312 * k) + ' GB';
+    set($('s2n'), p(t, a + .8, a + 1.2), 0, 0, .92 + .08 * k);
+    set($('s2b'), p(t, a + 2.4, a + 3.0));
+  }
+  // 3
+  { const a = S.s3[0];
+    const k = spring(clamp((t - a + .1) / 1.1));
+    set($('s3i'), clamp((t - a + .1) * 4), 0, 0, .4 + .6 * k);
+    set($('s3t'), p(t, a + .7, a + 1.3), 0, 26 * (1 - p(t, a + .7, a + 1.3)));
+    set($('s3s'), p(t, a + 1.2, a + 1.8), 0, 20 * (1 - p(t, a + 1.2, a + 1.8)));
+    set($('s3blob'), .45, 0, 0, .8 + .2 * p(t, a, a + 3));
+  }
+  // 4
+  { const a = S.s4[0];
+    const w = $('s4w'), k = p(t, a, a + .8);
+    // slow push-in across the scene
+    const zoom = 1 + .06 * p(t, a + .8, S.s4[1], easeInOut);
+    w.style.transformOrigin = '50% 40%';
+    set(w, 1, 0, 120 * (1 - k), zoom);
+    const left = 180, top = 60;
+    rows.forEach((ry, i) => {
+      const st = a + 1.2 + i * 2.25, en = st + 2.25;
+      const on = Math.min(p(t, st, st + .3), 1 - p(t, en - .3, en));
+      // row geometry in screen space, following the window zoom (origin 50% 40%)
+      const ox = left + 1560 * .5, oy = top + 922 * .4;
+      const x0 = left + 440 * SHOT, x1 = left + 2600 * SHOT, y0 = top + (ry - 40) * SHOT, y1 = top + (ry + 40) * SHOT;
+      const zx = (x) => ox + (x - ox) * zoom, zy = (y) => oy + (y - oy) * zoom;
+      const hl = $('hl' + i);
+      hl.style.left = zx(x0) - 8 + 'px'; hl.style.top = zy(y0) - 6 + 'px';
+      hl.style.width = zx(x1) - zx(x0) + 16 + 'px'; hl.style.height = zy(y1) - zy(y0) + 12 + 'px';
+      hl.style.opacity = on;
+      set($('c' + i), on, 0, 30 * (1 - p(t, st, st + .35)));
+    });
+  }
+  // 5
+  { const a = S.s5[0];
+    set($('s5t'), p(t, a - .2, a + .4), 0, 24 * (1 - p(t, a - .2, a + .4)));
+    ['t0', 't1', 't2', 't3'].forEach((id, i) => {
+      const st = a + .6 + i * .35, k = p(t, st, st + .5);
+      set($(id), k, 0, 40 * (1 - k), .96 + .04 * k);
+    });
+    set($('s5s'), p(t, a + 2.4, a + 3.0));
+  }
+  // 6
+  { const a = S.s6[0];
+    const w = $('s6w');
+    const k = p(t, a + 1.7, a + 2.3, easeInOut);
+    set(w, p(t, a, a + .6) * (1 - .6 * k), 60 * (1 - p(t, a, a + .6)), 0, 1);
+    set($('s6t'), p(t, a + .2, a + .8));
+    $('s6t').textContent = t < a + 2.0 ? 'Nothing is deleted. It all goes to the Trash.' : 'And it reminds you to empty it.';
+    set($('lens'), k, 0, 80 * (1 - k), .94 + .06 * k);
+  }
+  // 7
+  { const a = S.s7[0];
+    const k = spring(clamp((t - a + .15) / 1.0));
+    set($('s7i'), clamp((t - a + .15) * 4), 0, 0, .5 + .5 * k);
+    set($('s7t'), p(t, a + .5, a + 1.0), 0, 20 * (1 - p(t, a + .5, a + 1.0)));
+    set($('s7s'), p(t, a + .8, a + 1.3));
+    set($('s7c'), p(t, a + 1.2, a + 1.8), 0, 20 * (1 - p(t, a + 1.2, a + 1.8)));
+    set($('s7u'), p(t, a + 1.7, a + 2.2));
+    crumbs.forEach((el) => {
+      const d = +el.dataset.d, v = +el.dataset.v, tt = t - a - d;
+      el.style.left = el.dataset.x + 'px';
+      el.style.top = (-40 + v * Math.max(0, tt) + 60 * Math.max(0, tt) ** 2) + 'px';
+      el.style.opacity = tt > 0 ? .55 : 0;
+    });
+  }
+}
+
+window.DURATION = S.s7[1];
+window.render = render;
+render(0);
+</script>
+</body>
+</html>

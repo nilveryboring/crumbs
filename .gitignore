@@ -4,3 +4,6 @@
 build/
 DerivedData/
 .DS_Store
+marketing/video/frames/
+marketing/video/*.mp4
+marketing/video/still-*.png
