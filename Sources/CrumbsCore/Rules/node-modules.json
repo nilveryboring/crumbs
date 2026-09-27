@@ -1,0 +1,10 @@
+{
+  "id": "node-modules",
+  "name": "node_modules",
+  "category": "dependencies",
+  "description": "npm, pnpm, yarn or bun packages. Reinstall with your package manager.",
+  "patterns": ["**/node_modules"],
+  "regenerable": true,
+  "activity": "parent",
+  "minIdleDays": 30
+}

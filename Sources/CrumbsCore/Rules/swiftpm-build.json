@@ -1,0 +1,11 @@
+{
+  "id": "swiftpm-build",
+  "name": "SwiftPM .build",
+  "category": "build",
+  "description": "Swift package build folder. swift build recreates it.",
+  "patterns": ["**/.build"],
+  "requiresSibling": "Package.swift",
+  "regenerable": true,
+  "activity": "parent",
+  "minIdleDays": 14
+}

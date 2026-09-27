@@ -1,0 +1,11 @@
+{
+  "id": "rust-target",
+  "name": "Rust target",
+  "category": "build",
+  "description": "Cargo build artifacts. cargo build recreates them.",
+  "patterns": ["**/target"],
+  "requiresSibling": "Cargo.toml",
+  "regenerable": true,
+  "activity": "parent",
+  "minIdleDays": 14
+}

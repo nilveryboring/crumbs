@@ -1,0 +1,11 @@
+{
+  "id": "js-build-output",
+  "name": "Web build output",
+  "category": "build",
+  "description": "Ignored bundler and framework output. Your next build recreates it.",
+  "patterns": ["**/dist", "**/.next", "**/.nuxt", "**/.svelte-kit", "**/.astro", "**/.turbo", "**/.parcel-cache", "**/.vite"],
+  "requiresGitIgnored": true,
+  "regenerable": true,
+  "activity": "parent",
+  "minIdleDays": 14
+}

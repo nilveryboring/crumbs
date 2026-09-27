@@ -1,0 +1,11 @@
+{
+  "id": "codex-worktree",
+  "name": "Codex worktree",
+  "category": "worktree",
+  "description": "Checkout the Codex app made for a task, either ~/.codex/worktrees/<task> or ~/.codex/worktrees/<id>/<repo>.",
+  "patterns": ["~/.codex/worktrees/*", "~/.codex/worktrees/*/*"],
+  "regenerable": false,
+  "activity": "self",
+  "minIdleDays": 3,
+  "emptyParentPattern": "~/.codex/worktrees/*"
+}

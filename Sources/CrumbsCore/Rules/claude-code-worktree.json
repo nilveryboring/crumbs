@@ -1,0 +1,10 @@
+{
+  "id": "claude-code-worktree",
+  "name": "Claude Code worktree",
+  "category": "worktree",
+  "description": "Checkout Claude Code made for an agent or parallel task under .claude/worktrees.",
+  "patterns": ["**/.claude/worktrees/*"],
+  "regenerable": false,
+  "activity": "self",
+  "minIdleDays": 3
+}

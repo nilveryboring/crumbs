@@ -1,0 +1,11 @@
+{
+  "id": "scratch-tmp",
+  "name": "Ignored scratch folder",
+  "category": "scratch",
+  "description": "Git-ignored tmp folder where agents and scripts drop working files.",
+  "patterns": ["**/tmp", "**/.tmp", "**/temp"],
+  "requiresGitIgnored": true,
+  "regenerable": false,
+  "activity": "self",
+  "minIdleDays": 7
+}

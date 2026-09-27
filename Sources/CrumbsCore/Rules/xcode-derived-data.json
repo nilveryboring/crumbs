@@ -1,0 +1,10 @@
+{
+  "id": "xcode-derived-data",
+  "name": "Xcode DerivedData",
+  "category": "cache",
+  "description": "Xcode build cache for one project. Xcode rebuilds it on the next build.",
+  "patterns": ["~/Library/Developer/Xcode/DerivedData/*"],
+  "regenerable": true,
+  "activity": "self",
+  "minIdleDays": 14
+}

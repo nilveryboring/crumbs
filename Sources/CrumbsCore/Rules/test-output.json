@@ -1,0 +1,11 @@
+{
+  "id": "test-output",
+  "name": "Test run output",
+  "category": "testOutput",
+  "description": "Ignored Playwright and test-runner reports, traces and screenshots.",
+  "patterns": ["**/test-results", "**/playwright-report", "**/coverage", "**/.nyc_output"],
+  "requiresGitIgnored": true,
+  "regenerable": true,
+  "activity": "self",
+  "minIdleDays": 7
+}

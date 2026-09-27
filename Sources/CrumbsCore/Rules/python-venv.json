@@ -1,0 +1,11 @@
+{
+  "id": "python-venv",
+  "name": "Python virtualenv",
+  "category": "dependencies",
+  "description": "Ignored Python virtual environment. Recreate it from your requirements or lockfile.",
+  "patterns": ["**/.venv", "**/venv"],
+  "requiresGitIgnored": true,
+  "regenerable": true,
+  "activity": "parent",
+  "minIdleDays": 30
+}
