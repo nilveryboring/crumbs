@@ -87,5 +87,30 @@ public struct Rule: Codable, Sendable, Hashable {
             .filter { $0.pathExtension == "json" }
             .sorted { $0.lastPathComponent < $1.lastPathComponent }
             .compactMap { try? decoder.decode(Rule.self, from: Data(contentsOf: $0)) }
+            + [genericWorktree]
+    }
+}
+
+/// What a user changed about a built-in rule. Nil fields keep the default.
+public struct RuleOverride: Codable, Sendable, Hashable {
+    public var enabled: Bool?
+    public var minIdleDays: Int?
+
+    public init(enabled: Bool? = nil, minIdleDays: Int? = nil) {
+        self.enabled = enabled
+        self.minIdleDays = minIdleDays
+    }
+}
+
+extension Array where Element == Rule {
+    /// Built-in rules with the user's changes applied; disabled rules drop out.
+    public func applying(_ overrides: [String: RuleOverride]) -> [Rule] {
+        compactMap { rule in
+            guard let override = overrides[rule.id] else { return rule }
+            if override.enabled == false { return nil }
+            var changed = rule
+            if let days = override.minIdleDays { changed.minIdleDays = Swift.max(1, days) }
+            return changed
+        }
     }
 }

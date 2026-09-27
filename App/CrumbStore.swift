@@ -10,6 +10,9 @@ final class CrumbStore {
         case category(CrumbCategory)
     }
 
+    /// Everything the last scan found, including crumbs of rules the user has
+    /// since switched off. Views read `crumbs`.
+    private var allCrumbs: [Crumb] = []
     private(set) var crumbs: [Crumb] = []
     private(set) var isScanning = false
     private(set) var progress: ScanProgress?
@@ -22,6 +25,15 @@ final class CrumbStore {
     var roots: [String] {
         didSet { UserDefaults.standard.set(roots, forKey: "roots") }
     }
+    /// The user's changes to built-in rules, keyed by rule id.
+    var overrides: [String: RuleOverride] {
+        didSet {
+            if let data = try? JSONEncoder().encode(overrides) { UserDefaults.standard.set(data, forKey: "ruleOverrides") }
+            rejudge()
+        }
+    }
+    let builtInRules = Rule.builtIn()
+    var rules: [Rule] { builtInRules.applying(overrides) }
 
     /// Verdicts go stale: an agent can start working in a folder any time.
     /// Past this age the app asks for a rescan before trashing anything.
@@ -29,6 +41,8 @@ final class CrumbStore {
 
     init() {
         roots = UserDefaults.standard.stringArray(forKey: "roots") ?? CrumbScanner.defaultRoots()
+        overrides = UserDefaults.standard.data(forKey: "ruleOverrides")
+            .flatMap { try? JSONDecoder().decode([String: RuleOverride].self, from: $0) } ?? [:]
         loadCache()
     }
 
@@ -56,17 +70,18 @@ final class CrumbStore {
         isScanning = true
         notice = nil
         crumbs = []
+        allCrumbs = []
         let roots = roots
+        let rules = builtInRules // scan everything; overrides are applied by rejudge()
         Task {
-            let result = await CrumbScanner().scan(roots: roots) { progress in
+            let result = await CrumbScanner(rules: rules).scan(roots: roots) { progress in
                 Task { @MainActor [weak self] in self?.receive(progress) }
             }
-            crumbs = result
-            // Keep what the user picked if it is still there and still safe to pick.
-            selection = selection.filter { id in result.contains { $0.id == id && $0.verdict != .keep } }
+            allCrumbs = result
             lastScan = Date()
             progress = nil
             isScanning = false
+            rejudge() // also drops picks that are gone or no longer pickable
             saveCache()
         }
     }
@@ -74,10 +89,36 @@ final class CrumbStore {
     private func receive(_ progress: ScanProgress) {
         guard isScanning else { return }
         self.progress = progress
-        if let crumb = progress.latest, !crumbs.contains(where: { $0.id == crumb.id }) {
+        if let found = progress.latest, !crumbs.contains(where: { $0.id == found.id }),
+           let crumb = judged(found) {
             let index = crumbs.firstIndex { $0.size < crumb.size } ?? crumbs.endIndex
             crumbs.insert(crumb, at: index)
         }
+    }
+
+    /// Stores only what differs from the built-in default, so a rule the user
+    /// never touched picks up future default changes.
+    func setOverride(_ ruleID: String, enabled: Bool? = nil, minIdleDays: Int? = nil) {
+        guard let rule = builtInRules.first(where: { $0.id == ruleID }) else { return }
+        var override = overrides[ruleID] ?? RuleOverride()
+        if let enabled { override.enabled = enabled ? nil : false }
+        if let minIdleDays { override.minIdleDays = minIdleDays == rule.minIdleDays ? nil : minIdleDays }
+        overrides[ruleID] = override == RuleOverride() ? nil : override
+    }
+
+    /// Re-applies the current rules to what the scan found. Pure and fast: no
+    /// disk access, so moving a slider updates the list instantly.
+    private func rejudge() {
+        guard !isScanning else { return }
+        crumbs = allCrumbs.compactMap(judged)
+        selection = selection.filter { id in crumbs.contains { $0.id == id && $0.verdict != .keep } }
+    }
+
+    private func judged(_ crumb: Crumb) -> Crumb? {
+        guard let rule = rules.first(where: { $0.id == crumb.ruleID }) else { return nil } // switched off
+        var copy = crumb
+        (copy.verdict, copy.reasons) = Judge.evaluate(crumb, rule: rule, now: Date())
+        return copy
     }
 
     func selectAllSafe() {
@@ -91,9 +132,10 @@ final class CrumbStore {
     func trash(_ targets: [Crumb]) {
         guard !isTrashing, !targets.isEmpty else { return }
         isTrashing = true
+        let rules = rules
         Task {
             let (outcomes, blocked) = await Task.detached(priority: .userInitiated) {
-                let scanner = CrumbScanner()
+                let scanner = CrumbScanner(rules: rules)
                 let rechecked = targets.map { scanner.recheck($0) }
                 let blocked = rechecked.filter { $0.verdict == .keep }
                 let ok = rechecked.filter { $0.verdict != .keep }
@@ -103,8 +145,10 @@ final class CrumbStore {
             let trashed = Set(outcomes.filter { $0.error == nil }.map(\.path))
             let freed = outcomes.reduce(0) { $0 + $1.freed }
             crumbs.removeAll { trashed.contains($0.id) }
+            allCrumbs.removeAll { trashed.contains($0.id) }
             for fresh in blocked {
                 if let i = crumbs.firstIndex(where: { $0.id == fresh.id }) { crumbs[i] = fresh }
+                if let i = allCrumbs.firstIndex(where: { $0.id == fresh.id }) { allCrumbs[i] = fresh }
             }
             selection.subtract(trashed)
             selection.subtract(blocked.map(\.id))
@@ -147,13 +191,14 @@ final class CrumbStore {
               let cache = try? JSONDecoder().decode(Cache.self, from: data),
               cache.roots == roots
         else { return }
-        crumbs = cache.crumbs
+        allCrumbs = cache.crumbs
         lastScan = cache.date
+        rejudge()
     }
 
     private func saveCache() {
         guard let lastScan else { return }
-        let cache = Cache(date: lastScan, roots: roots, crumbs: crumbs)
+        let cache = Cache(date: lastScan, roots: roots, crumbs: allCrumbs)
         try? JSONEncoder().encode(cache).write(to: cacheURL, options: .atomic)
     }
 }

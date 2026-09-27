@@ -36,7 +36,7 @@ struct CrumbsApp: App {
         Settings {
             SettingsView()
                 .environment(store)
-                .frame(width: 520, height: 360)
+                .frame(width: 600, height: 560)
         }
     }
 }

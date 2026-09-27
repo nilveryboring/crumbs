@@ -100,7 +100,10 @@ public struct CrumbScanner: Sendable {
             }
 
             if depth > 0, hasGitFile, GitInspector.isLinkedWorktree(directory) {
-                found[directory] = Candidate(path: directory, rule: .genericWorktree, isWorktree: true)
+                // A checkout is never walked into, even when its rule is switched off.
+                if let fallback = rules.first(where: { $0.id == Rule.genericWorktree.id }) {
+                    found[directory] = Candidate(path: directory, rule: fallback, isWorktree: true)
+                }
                 continue
             }
             guard depth + 1 <= maxDepth else { continue }
@@ -186,7 +189,7 @@ public struct CrumbScanner: Sendable {
             fresh.reasons = [Reason(.keep, "No longer exists")]
             return fresh
         }
-        let rule = rules.first { $0.id == crumb.ruleID } ?? .genericWorktree
+        let rule = rules.first { $0.id == crumb.ruleID } ?? Rule.builtIn().first { $0.id == crumb.ruleID } ?? .genericWorktree
         fresh.processes = ProcessSnapshot.capture().processes(inside: crumb.path)
         if crumb.worktree != nil {
             fresh.worktree = GitInspector.inspectWorktree(at: crumb.path)

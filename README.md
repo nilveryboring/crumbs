@@ -91,6 +91,15 @@ swift run -c release crumbs scan ~/Code     # just this one
 swift run -c release crumbs scan --json     # for scripts and agents
 ```
 
+Every rule's waiting period can be changed, or the rule switched off: in the
+app under **Settings → Rules** (the list re-judges instantly, no rescan), or on
+the command line:
+
+```sh
+crumbs scan --rules                                  # ids and defaults
+crumbs scan --days node-modules=60 --days claude-code-worktree=7 --off rust-target
+```
+
 The CLI only reports. Trashing happens in the app.
 
 ## Building

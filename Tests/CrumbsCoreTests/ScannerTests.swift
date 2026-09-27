@@ -213,3 +213,40 @@ extension ScannerTests {
         #expect(fresh.verdict == .keep)
     }
 }
+
+extension ScannerTests {
+    @Test func overridesChangeThresholdsAndDisableRules() {
+        let rules = Rule.builtIn().applying([
+            "node-modules": RuleOverride(minIdleDays: 60),
+            "rust-target": RuleOverride(enabled: false),
+            "scratch-tmp": RuleOverride(minIdleDays: 0),
+        ])
+        #expect(rules.first { $0.id == "node-modules" }?.minIdleDays == 60)
+        #expect(!rules.contains { $0.id == "rust-target" })
+        #expect(rules.first { $0.id == "scratch-tmp" }?.minIdleDays == 1)
+    }
+
+    @Test func longerThresholdTurnsSafeIntoCheck() async throws {
+        let repo = try makeRepo()
+        try write(repo + "/node_modules/pkg/index.js")
+        // 40 days idle: safe under the 30-day default, "check" under 60.
+        let before = await CrumbScanner(now: later).scan(roots: [root]).first { $0.ruleID == "node-modules" }
+        #expect(before?.verdict == .safe)
+
+        let rules = Rule.builtIn().applying(["node-modules": RuleOverride(minIdleDays: 60)])
+        let after = await CrumbScanner(rules: rules, now: later).scan(roots: [root]).first { $0.ruleID == "node-modules" }
+        #expect(after?.verdict == .caution)
+    }
+
+    @Test func disablingGenericWorktreesSkipsThemWithoutWalkingInside() async throws {
+        let repo = try makeRepo()
+        let wt = root + "/elsewhere"
+        git(["worktree", "add", "-q", "-b", "elsewhere", wt], in: repo)
+        try write(wt + "/node_modules/pkg/index.js")
+
+        let rules = Rule.builtIn().applying(["git-worktree": RuleOverride(enabled: false)])
+        let crumbs = await CrumbScanner(rules: rules, now: later).scan(roots: [root])
+        #expect(!crumbs.contains { $0.path == wt })
+        #expect(!crumbs.contains { $0.path.hasPrefix(wt + "/") })
+    }
+}

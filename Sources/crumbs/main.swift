@@ -3,12 +3,16 @@ import Foundation
 
 // Read-only on purpose: the CLI reports, the app trashes.
 let usage = """
-usage: crumbs scan [--json] [--all] [path ...]
+usage: crumbs scan [--json] [--all] [--days RULE=N ...] [--off RULE ...] [path ...]
 
 Lists what AI coding agents and build tools left behind, with a verdict and
 the reasons for it. Defaults to your usual code folders, agent worktree
 folders, /private/tmp and Xcode DerivedData. Hides crumbs under 1 MB unless
 --all is given. Never deletes anything.
+
+  --days RULE=N   treat RULE as safe after N idle days (e.g. node-modules=60)
+  --off RULE      skip RULE entirely
+  --rules         list rule ids and their default days
 """
 
 var arguments = Array(CommandLine.arguments.dropFirst())
@@ -19,11 +23,45 @@ guard arguments.first == "scan" else {
 arguments.removeFirst()
 let json = arguments.contains("--json")
 let showAll = arguments.contains("--all")
-let paths = arguments.filter { !$0.hasPrefix("--") }
+
+var overrides: [String: RuleOverride] = [:]
+var paths: [String] = []
+var index = 0
+while index < arguments.count {
+    let argument = arguments[index]
+    index += 1
+    switch argument {
+    case "--days", "--off":
+        guard index < arguments.count else { print(usage); exit(64) }
+        let value = arguments[index]
+        index += 1
+        if argument == "--off" {
+            overrides[value, default: RuleOverride()].enabled = false
+        } else {
+            let parts = value.split(separator: "=", maxSplits: 1).map(String.init)
+            guard parts.count == 2, let days = Int(parts[1]) else { print(usage); exit(64) }
+            overrides[parts[0], default: RuleOverride()].minIdleDays = days
+        }
+    case "--rules":
+        for rule in Rule.builtIn() {
+            print("\(rule.id.padding(toLength: 22, withPad: " ", startingAt: 0)) \(rule.minIdleDays) days  \(rule.name)")
+        }
+        exit(0)
+    case let flag where flag.hasPrefix("--"):
+        continue
+    default:
+        paths.append(argument)
+    }
+}
+let known = Set(Rule.builtIn().map(\.id))
+for id in overrides.keys where !known.contains(id) {
+    FileHandle.standardError.write("unknown rule \(id); see crumbs scan --rules\n".data(using: .utf8)!)
+    exit(64)
+}
 let roots = paths.isEmpty ? CrumbScanner.defaultRoots() : paths
 
 let started = Date()
-let crumbs = await CrumbScanner().scan(roots: roots) { progress in
+let crumbs = await CrumbScanner(rules: Rule.builtIn().applying(overrides)).scan(roots: roots) { progress in
     guard !json, progress.total > 0 else { return }
     FileHandle.standardError.write("\r\(progress.phase) \(progress.completed)/\(progress.total)".data(using: .utf8)!)
 }

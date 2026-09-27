@@ -4,6 +4,7 @@ import SwiftUI
 struct ContentView: View {
     @Environment(CrumbStore.self) private var store
     @State private var confirming = false
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         @Bindable var store = store
@@ -52,6 +53,7 @@ struct ContentView: View {
         .task {
             if store.crumbs.isEmpty || store.isStale { store.scan() }
             #if DEBUG
+            if ProcessInfo.processInfo.environment["CRUMBS_DEBUG_SETTINGS"] != nil { openSettings() }
             if ProcessInfo.processInfo.environment["CRUMBS_DEBUG_FOCUS"] != nil {
                 store.focused = store.visible.first { $0.verdict == .caution && $0.category == .worktree }?.id
                 store.selectAllSafe()
