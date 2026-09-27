@@ -2,7 +2,7 @@
 
 **Find what your AI agents left behind.**
 
-[Website](https://www.nilni.com/crumbs) · [Download](https://github.com/nilveryboring/crumbs/releases/latest) · [Privacy](https://www.nilni.com/crumbs/privacy)
+[Website](https://www.nilni.com/crumbs) · [Download](https://github.com/nilveryboring/crumbs/releases/latest) · [Feedback](https://www.nilni.com/crumbs/feedback) · [Privacy](https://www.nilni.com/crumbs/privacy)
 
 ![Crumbs showing agent worktrees, node_modules and build output with a verdict and the reason for each](docs/screenshot.png)
 
@@ -20,11 +20,8 @@ Download `Crumbs-<version>.zip` from the
 it, and drag Crumbs to Applications. Requires macOS 14 or later, Apple silicon
 or Intel.
 
-> **0.1.0 is not notarized yet.** The first time you open it, macOS says it
-> can't check it for malware. Open **System Settings → Privacy & Security**,
-> scroll down, and click **Open Anyway**. Or, from Terminal:
-> `xattr -dr com.apple.quarantine /Applications/Crumbs.app`.
-> Notarized builds come next.
+Builds are signed with a Developer ID and notarized by Apple, so it opens like
+any other app.
 
 Crumbs makes no network requests and collects nothing. See the
 [privacy policy](https://www.nilni.com/crumbs/privacy).
@@ -134,11 +131,18 @@ open Crumbs.xcodeproj
 ```
 
 `scripts/make-icon.sh` re-renders the app icon from `App/CookieArt.swift`.
-`scripts/release.sh` builds the release zip (`--notarize PROFILE` for a
-Developer ID signed, notarized build).
+`scripts/release.sh` builds a Developer ID signed, notarized release zip using
+the Apple account signed into Xcode (`--unsigned` for an ad-hoc build).
 
 Crumbs is not sandboxed and is not on the Mac App Store: a sandboxed app can't
 walk your code folders or ask git about them.
+
+## Feedback
+
+Found a verdict that looks wrong, or a leftover Crumbs misses? Use
+**Help → Send Feedback…** in the app, the
+[feedback form](https://www.nilni.com/crumbs/feedback) (built with
+[Makeform](https://www.makeform.ai/?ref=crumbs)), or open an issue.
 
 ## License
 

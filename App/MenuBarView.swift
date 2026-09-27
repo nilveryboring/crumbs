@@ -49,6 +49,8 @@ struct MenuBarView: View {
                 .buttonStyle(.borderedProminent)
                 Button("Scan") { store.scan() }.disabled(store.isScanning)
                 Spacer()
+                Link("Feedback", destination: Links.feedback)
+                    .font(.callout)
                 Button("Quit") { NSApp.terminate(nil) }
             }
         }
