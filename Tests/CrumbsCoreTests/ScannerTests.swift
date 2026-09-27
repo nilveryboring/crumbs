@@ -199,3 +199,17 @@ import Testing
         if let trashed = outcome.trashedTo { try? FileManager.default.removeItem(atPath: trashed) }
     }
 }
+
+extension ScannerTests {
+    @Test func recheckCatchesWorkDoneAfterTheScan() async throws {
+        let repo = try makeRepo()
+        let wt = repo + "/.claude/worktrees/agent-7"
+        git(["worktree", "add", "-q", "-b", "agent-7", wt], in: repo)
+        let crumb = try #require(await scan()[wt])
+        #expect(crumb.verdict == .safe)
+
+        try write(wt + "/written-after-scan.txt")
+        let fresh = CrumbScanner(now: later).recheck(crumb)
+        #expect(fresh.verdict == .keep)
+    }
+}

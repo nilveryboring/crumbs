@@ -1,0 +1,36 @@
+name: Crumbs
+options:
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+packages:
+  CrumbsPackage:
+    path: .
+targets:
+  Crumbs:
+    type: application
+    platform: macOS
+    sources:
+      - App
+    dependencies:
+      - package: CrumbsPackage
+        product: CrumbsCore
+    settings:
+      base:
+        PRODUCT_NAME: Crumbs
+        PRODUCT_MODULE_NAME: CrumbsApp
+        PRODUCT_BUNDLE_IDENTIFIER: com.nilni.Crumbs
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Crumbs
+        INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.developer-tools
+        INFOPLIST_KEY_NSHumanReadableCopyright: "MIT License"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "6.0"
+        ENABLE_HARDENED_RUNTIME: YES
+        ENABLE_APP_SANDBOX: NO
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        DEVELOPMENT_TEAM: ""
+        DEAD_CODE_STRIPPING: YES

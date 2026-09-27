@@ -4,6 +4,16 @@ public struct ScanProgress: Sendable {
     public var phase: String
     public var completed: Int
     public var total: Int
+    /// The crumb that just finished measuring, so a UI can show results as
+    /// they arrive instead of after the slowest folder.
+    public var latest: Crumb?
+
+    public init(phase: String, completed: Int, total: Int, latest: Crumb? = nil) {
+        self.phase = phase
+        self.completed = completed
+        self.total = total
+        self.latest = latest
+    }
 }
 
 public struct CrumbScanner: Sendable {
@@ -52,7 +62,7 @@ public struct CrumbScanner: Sendable {
             }
             for await crumb in group {
                 crumbs.append(crumb)
-                progress(ScanProgress(phase: "Measuring", completed: crumbs.count, total: total))
+                progress(ScanProgress(phase: "Measuring", completed: crumbs.count, total: total, latest: crumb))
                 if let next = iterator.next() {
                     group.addTask { inspect(next, processes: processes) }
                 }
@@ -162,5 +172,26 @@ public struct CrumbScanner: Sendable {
         )
         (crumb.verdict, crumb.reasons) = Judge.evaluate(crumb, rule: candidate.rule, now: now())
         return crumb
+    }
+
+    // MARK: Recheck
+
+    /// Fast re-verification right before trashing: fresh process and git
+    /// state, size and activity carried over from the scan. Anything that
+    /// got worse since the scan shows up in the new verdict.
+    public func recheck(_ crumb: Crumb) -> Crumb {
+        var fresh = crumb
+        guard FileManager.default.fileExists(atPath: crumb.path) else {
+            fresh.verdict = .keep
+            fresh.reasons = [Reason(.keep, "No longer exists")]
+            return fresh
+        }
+        let rule = rules.first { $0.id == crumb.ruleID } ?? .genericWorktree
+        fresh.processes = ProcessSnapshot.capture().processes(inside: crumb.path)
+        if crumb.worktree != nil {
+            fresh.worktree = GitInspector.inspectWorktree(at: crumb.path)
+        }
+        (fresh.verdict, fresh.reasons) = Judge.evaluate(fresh, rule: rule, now: now())
+        return fresh
     }
 }
