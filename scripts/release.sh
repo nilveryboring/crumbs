@@ -41,4 +41,4 @@ fi
 codesign --verify --deep --strict "$app"
 zip="$out/Crumbs-$version.zip"
 ditto -c -k --keepParent "$app" "$zip"
-shasum -a 256 "$zip" | tee "$zip.sha256"
+(cd "$out" && shasum -a 256 "Crumbs-$version.zip") | tee "$zip.sha256"| tee "$zip.sha256"
