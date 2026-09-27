@@ -22,6 +22,10 @@ final class CrumbStore {
     var filter: Filter = .all
     var focused: Crumb.ID?
     var notice: String?
+    /// What Crumbs moved to the Trash that is still there. Trashing frees no
+    /// space until the Trash is emptied, so the UI keeps saying so.
+    private(set) var inTrash: [TrashedItem] = []
+    var inTrashSize: Int64 { inTrash.reduce(0) { $0 + $1.size } }
     var roots: [String] {
         didSet { UserDefaults.standard.set(roots, forKey: "roots") }
     }
@@ -48,10 +52,24 @@ final class CrumbStore {
             allCrumbs = DemoData.crumbs()
             lastScan = Date().addingTimeInterval(-40)
             rejudge()
+            if DemoData.afterTrashing {
+                let safe = crumbs.filter { $0.verdict == .safe }
+                let size = safe.reduce(0) { $0 + $1.size }
+                allCrumbs.removeAll { crumb in safe.contains { $0.id == crumb.id } }
+                rejudge()
+                inTrash = [TrashedItem(trashPath: NSHomeDirectory(), size: size, date: Date())]
+                notice = "Moved \(safe.count) items (\(Format.bytes(size))) to the Trash."
+            }
             return
         }
         #endif
         loadCache()
+        loadTrash()
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refreshTrash() }
+        }
     }
 
     // MARK: Derived
@@ -164,7 +182,13 @@ final class CrumbStore {
             selection.subtract(trashed)
             selection.subtract(blocked.map(\.id))
 
-            var lines = ["Moved \(trashed.count) to the Trash, \(Format.bytes(freed)) freed."]
+            let now = Date()
+            inTrash += outcomes.compactMap { outcome in
+                outcome.trashedTo.map { TrashedItem(trashPath: $0, size: outcome.freed, date: now) }
+            }
+            saveTrash()
+
+            var lines = ["Moved \(trashed.count) item\(trashed.count == 1 ? "" : "s") (\(Format.bytes(freed))) to the Trash."]
             if !blocked.isEmpty {
                 lines.append("Skipped \(blocked.count) that changed since the scan: \(blocked.prefix(3).map(\.name).joined(separator: ", ")).")
             }
@@ -176,6 +200,29 @@ final class CrumbStore {
             isTrashing = false
             saveCache()
         }
+    }
+
+    func showTrash() {
+        if let trash = try? FileManager.default.url(for: .trashDirectory, in: .userDomainMask, appropriateFor: nil, create: false) {
+            NSWorkspace.shared.open(trash)
+        }
+    }
+
+    /// Drops entries the user has emptied or put back.
+    func refreshTrash() {
+        let before = inTrash.count
+        inTrash = inTrash.filter { FileManager.default.fileExists(atPath: $0.trashPath) }
+        if inTrash.count != before { saveTrash() }
+    }
+
+    private func loadTrash() {
+        inTrash = UserDefaults.standard.data(forKey: "inTrash")
+            .flatMap { try? JSONDecoder().decode([TrashedItem].self, from: $0) } ?? []
+        refreshTrash()
+    }
+
+    private func saveTrash() {
+        if let data = try? JSONEncoder().encode(inTrash) { UserDefaults.standard.set(data, forKey: "inTrash") }
     }
 
     func reveal(_ crumb: Crumb) {
@@ -212,6 +259,12 @@ final class CrumbStore {
         let cache = Cache(date: lastScan, roots: roots, crumbs: allCrumbs)
         try? JSONEncoder().encode(cache).write(to: cacheURL, options: .atomic)
     }
+}
+
+struct TrashedItem: Codable, Hashable {
+    var trashPath: String
+    var size: Int64
+    var date: Date
 }
 
 enum Format {

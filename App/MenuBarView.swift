@@ -29,6 +29,17 @@ struct MenuBarView: View {
                 }
             }
 
+            if store.inTrashSize > 0 {
+                Button {
+                    store.showTrash()
+                } label: {
+                    Label("\(Format.bytes(store.inTrashSize)) waiting in the Trash. Empty it to free the space.", systemImage: "trash")
+                        .font(.caption)
+                        .multilineTextAlignment(.leading)
+                }
+                .buttonStyle(.link)
+            }
+
             Divider()
             Group {
                 if store.isScanning, let progress = store.progress {

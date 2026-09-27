@@ -6,6 +6,8 @@ import Foundation
 /// that don't show anyone's actual projects. Verdicts still come from Judge.
 enum DemoData {
     static var enabled: Bool { ProcessInfo.processInfo.environment["CRUMBS_DEMO"] != nil }
+    /// `CRUMBS_DEMO=trashed`: the moment after "Move to Trash".
+    static var afterTrashing: Bool { ProcessInfo.processInfo.environment["CRUMBS_DEMO"] == "trashed" }
 
     static func crumbs() -> [Crumb] {
         let rules = Dictionary(uniqueKeysWithValues: Rule.builtIn().map { ($0.id, $0) })

@@ -181,11 +181,22 @@ private struct ActionBar: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            if let notice = store.notice {
-                Label(notice, systemImage: "checkmark.circle").foregroundStyle(.secondary).lineLimit(2)
-            } else if store.isStale, !store.crumbs.isEmpty, !store.isScanning {
-                Label("These results are over an hour old. Scan again before trashing.", systemImage: "clock.arrow.circlepath")
-                    .foregroundStyle(.orange)
+            VStack(alignment: .leading, spacing: 4) {
+                if let notice = store.notice {
+                    Label(notice, systemImage: "checkmark.circle").foregroundStyle(.secondary).lineLimit(2)
+                } else if store.isStale, !store.crumbs.isEmpty, !store.isScanning {
+                    Label("These results are over an hour old. Scan again before trashing.", systemImage: "clock.arrow.circlepath")
+                        .foregroundStyle(.orange)
+                }
+                if store.inTrashSize > 0 {
+                    HStack(spacing: 8) {
+                        Label("\(Format.bytes(store.inTrashSize)) from Crumbs is in the Trash. Empty the Trash to get the space back.",
+                              systemImage: "trash")
+                            .foregroundStyle(.primary)
+                        Button("Show Trash") { store.showTrash() }
+                            .buttonStyle(.link)
+                    }
+                }
             }
             Spacer()
             Button("Select Safe") { store.selectAllSafe() }
