@@ -15,7 +15,11 @@ and tells you, for each one, whether it is actually safe to throw away and why.
 
 ## Install
 
-Download `Crumbs-<version>.zip` from the
+```sh
+brew install --cask nilveryboring/tap/crumbs
+```
+
+Or download `Crumbs-<version>.zip` from the
 [latest release](https://github.com/nilveryboring/crumbs/releases/latest), unzip
 it, and drag Crumbs to Applications. Requires macOS 14 or later, Apple silicon
 or Intel.
