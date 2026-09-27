@@ -12,10 +12,10 @@ import Testing
 
     @Test func singleStarStaysInOneComponent() {
         let glob = Glob("~/.codex/worktrees/*/*", home: "/Users/a")
-        #expect(glob.matches("/Users/a/.codex/worktrees/2263/mkform"))
+        #expect(glob.matches("/Users/a/.codex/worktrees/2263/webapp"))
         #expect(!glob.matches("/Users/a/.codex/worktrees/2263"))
-        #expect(!glob.matches("/Users/a/.codex/worktrees/2263/mkform/src"))
-        #expect(!glob.matches("/Users/b/.codex/worktrees/2263/mkform"))
+        #expect(!glob.matches("/Users/a/.codex/worktrees/2263/webapp/src"))
+        #expect(!glob.matches("/Users/b/.codex/worktrees/2263/webapp"))
     }
 
     @Test func claudeWorktreesAnywhere() {

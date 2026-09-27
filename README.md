@@ -2,12 +2,32 @@
 
 **Find what your AI agents left behind.**
 
+[Website](https://www.nilni.com/crumbs) · [Download](https://github.com/nilveryboring/crumbs/releases/latest) · [Privacy](https://www.nilni.com/crumbs/privacy)
+
+![Crumbs showing agent worktrees, node_modules and build output with a verdict and the reason for each](docs/screenshot.png)
+
 Claude Code, Codex, Cursor and friends make a fresh git worktree for every
 task, install `node_modules` in each one, drop scratch files in `tmp/`, and
 move on. A few weeks later that is a few hundred gigabytes.
 
 Crumbs is a small native macOS app (about 2 MB) that finds those leftovers
 and tells you, for each one, whether it is actually safe to throw away and why.
+
+## Install
+
+Download `Crumbs-<version>.zip` from the
+[latest release](https://github.com/nilveryboring/crumbs/releases/latest), unzip
+it, and drag Crumbs to Applications. Requires macOS 14 or later, Apple silicon
+or Intel.
+
+> **0.1.0 is not notarized yet.** The first time you open it, macOS says it
+> can't check it for malware. Open **System Settings → Privacy & Security**,
+> scroll down, and click **Open Anyway**. Or, from Terminal:
+> `xattr -dr com.apple.quarantine /Applications/Crumbs.app`.
+> Notarized builds come next.
+
+Crumbs makes no network requests and collects nothing. See the
+[privacy policy](https://www.nilni.com/crumbs/privacy).
 
 ## The point is the "why"
 
@@ -114,10 +134,11 @@ open Crumbs.xcodeproj
 ```
 
 `scripts/make-icon.sh` re-renders the app icon from `App/CookieArt.swift`.
+`scripts/release.sh` builds the release zip (`--notarize PROFILE` for a
+Developer ID signed, notarized build).
 
 Crumbs is not sandboxed and is not on the Mac App Store: a sandboxed app can't
-walk your code folders or ask git about them. Releases are Developer ID signed
-and notarized.
+walk your code folders or ask git about them.
 
 ## License
 

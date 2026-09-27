@@ -43,6 +43,14 @@ final class CrumbStore {
         roots = UserDefaults.standard.stringArray(forKey: "roots") ?? CrumbScanner.defaultRoots()
         overrides = UserDefaults.standard.data(forKey: "ruleOverrides")
             .flatMap { try? JSONDecoder().decode([String: RuleOverride].self, from: $0) } ?? [:]
+        #if DEBUG
+        if DemoData.enabled {
+            allCrumbs = DemoData.crumbs()
+            lastScan = Date().addingTimeInterval(-40)
+            rejudge()
+            return
+        }
+        #endif
         loadCache()
     }
 
@@ -67,6 +75,9 @@ final class CrumbStore {
 
     func scan() {
         guard !isScanning else { return }
+        #if DEBUG
+        if DemoData.enabled { return }
+        #endif
         isScanning = true
         notice = nil
         crumbs = []

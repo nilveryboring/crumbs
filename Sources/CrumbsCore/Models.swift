@@ -78,6 +78,11 @@ public struct WorktreeInfo: Codable, Sendable, Hashable {
 public struct ProcessRef: Codable, Sendable, Hashable {
     public var pid: Int32
     public var name: String
+
+    public init(pid: Int32, name: String) {
+        self.pid = pid
+        self.name = name
+    }
 }
 
 public struct Crumb: Identifiable, Codable, Sendable, Hashable {
@@ -98,4 +103,24 @@ public struct Crumb: Identifiable, Codable, Sendable, Hashable {
     public var reasons: [Reason]
 
     public var name: String { (path as NSString).lastPathComponent }
+
+    public init(path: String, ruleID: String, ruleName: String, category: CrumbCategory, regenerable: Bool,
+                emptyParentPattern: String? = nil, size: Int64, fileCount: Int, lastActivity: Date?,
+                worktree: WorktreeInfo? = nil, secrets: [String] = [], processes: [ProcessRef] = [],
+                verdict: Verdict = .safe, reasons: [Reason] = []) {
+        self.path = path
+        self.ruleID = ruleID
+        self.ruleName = ruleName
+        self.category = category
+        self.regenerable = regenerable
+        self.emptyParentPattern = emptyParentPattern
+        self.size = size
+        self.fileCount = fileCount
+        self.lastActivity = lastActivity
+        self.worktree = worktree
+        self.secrets = secrets
+        self.processes = processes
+        self.verdict = verdict
+        self.reasons = reasons
+    }
 }

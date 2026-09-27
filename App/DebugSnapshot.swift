@@ -8,6 +8,16 @@ enum DebugSnapshot {
     @MainActor static func startIfRequested() {
         guard let dir = ProcessInfo.processInfo.environment["CRUMBS_SNAPSHOT_DIR"] else { return }
         try? FileManager.default.createDirectory(atPath: dir, withIntermediateDirectories: true)
+        // Screenshots want the key-window look: colored traffic lights, prominent buttons.
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+            NSApp.activate(ignoringOtherApps: true)
+            if let size = ProcessInfo.processInfo.environment["CRUMBS_DEBUG_SIZE"]?.split(separator: "x"),
+               size.count == 2, let w = Double(size[0]), let h = Double(size[1]),
+               let main = NSApp.windows.first(where: { $0.title == "Crumbs" }) {
+                main.setContentSize(NSSize(width: w, height: h))
+                main.makeKeyAndOrderFront(nil)
+            }
+        }
         var tick = 0
         Timer.scheduledTimer(withTimeInterval: 4, repeats: true) { _ in
             MainActor.assumeIsolated {
