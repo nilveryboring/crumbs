@@ -65,7 +65,7 @@ public struct CrumbScanner: Sendable {
         let mark = ChangeJournal.mark(roots: canonicalRoots) // before reading, so changes made meanwhile count next time
         var changes: ChangeJournal.Changes?
         if let memory, !previous.isEmpty, now().timeIntervalSince(memory.fullScan) < fullScanEvery {
-            changes = ChangeJournal.changes(since: memory.mark, roots: canonicalRoots)
+            changes = ChangeJournal.changes(since: memory.earlier ?? memory.mark, roots: canonicalRoots)
         }
         var unchanged: [String: Crumb] = [:]
         if let changes {
@@ -82,7 +82,7 @@ public struct CrumbScanner: Sendable {
             return crumb.worktree == nil
         }.map(\.path))
         let fullScan = changes == nil ? now() : (memory?.fullScan ?? now())
-        let newMemory = mark.map { ScanMemory(mark: $0, fullScan: fullScan) }
+        let newMemory = mark.map { ScanMemory(mark: $0, earlier: changes == nil ? nil : memory?.mark, fullScan: fullScan) }
 
         let candidates = discover(roots: roots, unchanged: known, changes: changes)
         let processes = ProcessSnapshot.capture()

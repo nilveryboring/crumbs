@@ -14,12 +14,17 @@ public struct ScanMark: Codable, Sendable, Equatable {
 /// What one scan leaves for the next.
 public struct ScanMemory: Codable, Sendable {
     public var mark: ScanMark
+    /// The mark of the scan before that one. macOS can report a change a few
+    /// seconds late, after a scan has already asked, so each scan asks from
+    /// one scan further back and nothing slips between two of them.
+    public var earlier: ScanMark?
     /// When every folder was last read in full. A full read is repeated
     /// daily in case the change record ever missed something.
     public var fullScan: Date
 
-    public init(mark: ScanMark, fullScan: Date) {
+    public init(mark: ScanMark, earlier: ScanMark? = nil, fullScan: Date) {
         self.mark = mark
+        self.earlier = earlier
         self.fullScan = fullScan
     }
 }

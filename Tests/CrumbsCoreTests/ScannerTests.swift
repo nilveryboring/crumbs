@@ -396,7 +396,11 @@ extension ScannerTests {
             return crumb
         }
         try write(repo + "/sub/node_modules/b/deep/new.js", String(repeating: "x", count: 100_000))
-        try await Task.sleep(for: .seconds(2))
+        // macOS reports the change within a second or two; longer when the disk is busy.
+        for _ in 0..<40 {
+            if ChangeJournal.changes(since: memory.mark, roots: [root])?.touches(repo + "/sub/node_modules") == true { break }
+            try await Task.sleep(for: .milliseconds(500))
+        }
 
         let second = await scanner.scan(roots: [root], previous: marked, memory: memory)
         let byPath = Dictionary(uniqueKeysWithValues: second.crumbs.map { ($0.path, $0) })
