@@ -26,6 +26,12 @@ final class CrumbStore {
         didSet { UserDefaults.standard.set(groupByProject, forKey: "groupByProject") }
     }
     var notice: String?
+    /// What the confirmation dialog is asking about right now.
+    enum Confirmation: Equatable {
+        case trash
+        case delete
+    }
+    var confirmation: Confirmation?
     /// Free and total bytes on the disk that holds the home folder.
     private(set) var disk: (free: Int64, total: Int64)?
     /// Dead records in Codex and git that a "Tidy Up" can clear.
@@ -216,7 +222,7 @@ final class CrumbStore {
     private func rejudge() {
         guard !isScanning else { return }
         crumbs = allCrumbs.compactMap(judged)
-        selection = selection.filter { id in crumbs.contains { $0.id == id && $0.verdict != .keep } }
+        selection = selection.filter { id in crumbs.contains { $0.id == id } }
     }
 
     private func judged(_ crumb: Crumb) -> Crumb? {
@@ -234,17 +240,21 @@ final class CrumbStore {
 
     /// Re-verifies every crumb, trashes the ones that are still OK, and
     /// reports the ones that changed under us instead of trashing them.
-    func trash(_ targets: [Crumb]) {
+    /// A crumb that already said Keep when the user picked it goes anyway:
+    /// the dialog told them why it was marked, and they chose to.
+    func trash(_ targets: [Crumb], permanently: Bool = false) {
         guard !isTrashing, !targets.isEmpty else { return }
         isTrashing = true
         let rules = rules
+        let overridden = Set(targets.filter { $0.verdict == .keep }.map(\.id))
         Task {
             let (outcomes, blocked) = await Task.detached(priority: .userInitiated) {
                 let scanner = CrumbScanner(rules: rules)
                 let rechecked = targets.map { scanner.recheck($0) }
-                let blocked = rechecked.filter { $0.verdict == .keep }
-                let ok = rechecked.filter { $0.verdict != .keep }
-                return (Trasher.trash(ok), blocked)
+                let gone = rechecked.filter { !FileManager.default.fileExists(atPath: $0.path) }.map(\.id)
+                let blocked = rechecked.filter { $0.verdict == .keep && (!overridden.contains($0.id) || gone.contains($0.id)) }
+                let ok = rechecked.filter { crumb in !blocked.contains { $0.id == crumb.id } }
+                return (Trasher.trash(ok, permanently: permanently), blocked)
             }.value
 
             let trashed = Set(outcomes.filter { $0.error == nil }.map(\.path))
@@ -264,7 +274,8 @@ final class CrumbStore {
             }
             saveTrash()
 
-            var lines = ["Moved \(trashed.count) item\(trashed.count == 1 ? "" : "s") (\(Format.bytes(freed))) to the Trash."]
+            let count = "\(trashed.count) item\(trashed.count == 1 ? "" : "s") (\(Format.bytes(freed)))"
+            var lines = [permanently ? "Deleted \(count) for good." : "Moved \(count) to the Trash."]
             if !blocked.isEmpty {
                 lines.append("Skipped \(blocked.count) that changed since the scan: \(blocked.prefix(3).map(\.name).joined(separator: ", ")).")
             }
@@ -274,7 +285,7 @@ final class CrumbStore {
             }
             let failures = outcomes.filter { $0.error != nil }
             if !failures.isEmpty {
-                lines.append("Couldn't move \(failures.count): \(failures[0].error ?? "")")
+                lines.append("Couldn't \(permanently ? "delete" : "move") \(failures.count): \(failures[0].error ?? "")")
             }
             notice = lines.joined(separator: " ")
             isTrashing = false

@@ -342,4 +342,39 @@ extension ScannerTests {
         #expect(left.staleWorktrees.isEmpty)
         #expect(!git(["worktree", "list"], in: repo).contains("wt-gone"))
     }
+
+    @Test func permanentDeleteSkipsTheTrashAndStillPrunes() async throws {
+        let repo = try makeRepo()
+        let wt = root + "/wt-delete"
+        git(["worktree", "add", "-q", "-b", "delete-me", wt], in: repo)
+        let crumb = try #require(await scan()[wt])
+
+        let outcome = try #require(Trasher.trash([crumb], permanently: true).first)
+        #expect(outcome.error == nil)
+        #expect(outcome.trashedTo == nil) // nothing to put back
+        #expect(!FileManager.default.fileExists(atPath: wt))
+        #expect(!git(["worktree", "list"], in: repo).contains("wt-delete"))
+    }
+
+    @Test func workAtRiskNamesTheFilesAndCommits() async throws {
+        let repo = try makeRepo()
+        let wt = root + "/wt-risk"
+        git(["worktree", "add", "-q", "-b", "risky", wt], in: repo)
+        try write(wt + "/README.md", "hi\nmore\n")
+        try write(wt + "/notes.txt", "draft")
+        try write(wt + "/kept.txt", "kept")
+        git(["add", "kept.txt"], in: wt)
+        git(["commit", "-qm", "Keep this"], in: wt)
+        try write(wt + "/README.md", "hi\nmore\nand more\n")
+        try write(wt + "/node_modules/a/index.js") // not ignored here, still not work
+
+        let crumb = try #require(await scan()[wt])
+        let risk = WorkAtRisk.inspect(worktree: wt, info: try #require(crumb.worktree))
+        #expect(risk.files.map(\.path).sorted() == ["README.md", "notes.txt"])
+        #expect(risk.files.first { $0.path == "notes.txt" }?.change == "new")
+        let readme = try #require(risk.files.first { $0.path == "README.md" })
+        #expect(readme.change == "modified" && (readme.added ?? 0) > 0)
+        #expect(risk.commits.count == 1 && risk.commits[0].hasSuffix("Keep this"))
+        #expect(crumb.worktree?.dirtyFiles == 2)
+    }
 }

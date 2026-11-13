@@ -3,7 +3,6 @@ import SwiftUI
 
 struct ContentView: View {
     @Environment(CrumbStore.self) private var store
-    @State private var confirming = false
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
@@ -21,7 +20,7 @@ struct ContentView: View {
                     CrumbTable()
                 }
                 Divider()
-                ActionBar(confirming: $confirming)
+                ActionBar()
             }
             .inspector(isPresented: .constant(store.focusedCrumb != nil)) {
                 if let crumb = store.focusedCrumb {
@@ -48,11 +47,17 @@ struct ContentView: View {
                 .help("Scan again (⌘R)")
             }
         }
-        .confirmationDialog(confirmTitle, isPresented: $confirming, titleVisibility: .visible) {
-            Button("Move to Trash", role: .destructive) { store.trash(store.selectedCrumbs) }
+        .confirmationDialog(confirmTitle, isPresented: Binding(
+            get: { store.confirmation != nil },
+            set: { if !$0 { store.confirmation = nil } }), titleVisibility: .visible, presenting: store.confirmation) { kind in
+            if kind == .delete {
+                Button("Delete Permanently", role: .destructive) { store.trash(store.selectedCrumbs, permanently: true) }
+            } else {
+                Button("Move to Trash", role: .destructive) { store.trash(store.selectedCrumbs) }
+            }
             Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(confirmMessage)
+        } message: { kind in
+            Text(confirmMessage(kind))
         }
         .task {
             if store.crumbs.isEmpty || store.isStale { store.scan() }
@@ -61,6 +66,10 @@ struct ContentView: View {
             if let name = ProcessInfo.processInfo.environment["CRUMBS_DEBUG_FILTER"],
                let category = CrumbCategory(rawValue: name) {
                 store.filter = .category(category)
+            }
+            if ProcessInfo.processInfo.environment["CRUMBS_DEBUG_CONFIRM"] != nil {
+                store.selection = Set(store.visible.filter { $0.verdict != .safe }.prefix(4).map(\.id))
+                store.confirmation = .delete
             }
             if ProcessInfo.processInfo.environment["CRUMBS_DEBUG_FOCUS"] != nil {
                 store.focused = store.visible.first { $0.verdict == .caution && $0.category == .worktree }?.id
@@ -71,16 +80,26 @@ struct ContentView: View {
     }
 
     private var confirmTitle: String {
-        "Move \(store.selection.count) item\(store.selection.count == 1 ? "" : "s") (\(Format.bytes(store.selectedSize))) to the Trash?"
+        let items = "\(store.selection.count) item\(store.selection.count == 1 ? "" : "s") (\(Format.bytes(store.selectedSize)))"
+        return store.confirmation == .delete ? "Permanently delete \(items)?" : "Move \(items) to the Trash?"
     }
 
-    private var confirmMessage: String {
-        let cautious = store.selectedCrumbs.filter { $0.verdict == .caution }.count
-        var text = "Crumbs checks each one again first and skips anything that changed. You can put items back from the Trash."
-        if cautious > 0 {
-            text = "\(cautious) of them are marked Check. Read their reasons first.\n\n" + text
+    private func confirmMessage(_ kind: CrumbStore.Confirmation) -> String {
+        let picked = store.selectedCrumbs
+        let kept = picked.filter { $0.verdict == .keep }
+        let cautious = picked.filter { $0.verdict == .caution }.count
+        var parts: [String] = []
+        if !kept.isEmpty {
+            // Say what is at stake, in the crumb's own words.
+            let examples = kept.prefix(3).map { "\($0.name): \($0.reasons.first?.text ?? "marked Keep")" }.joined(separator: "\n")
+            let more = kept.count > 3 ? "\nand \(kept.count - 3) more" : ""
+            parts.append("\(kept.count) of them \(kept.count == 1 ? "is" : "are") marked Keep and will go anyway:\n\(examples)\(more)")
         }
-        return text
+        if cautious > 0 { parts.append("\(cautious) of them are marked Check. Read their reasons first.") }
+        parts.append(kind == .delete
+            ? "This skips the Trash. The space comes back right away and nothing can be put back."
+            : "Crumbs checks each one again first and skips anything that changed. You can put items back from the Trash.")
+        return parts.joined(separator: "\n\n")
     }
 }
 
@@ -207,7 +226,6 @@ private struct EmptyState: View {
 
 private struct ActionBar: View {
     @Environment(CrumbStore.self) private var store
-    @Binding var confirming: Bool
 
     private var looseEndsText: String {
         let ends = store.looseEnds
@@ -257,8 +275,11 @@ private struct ActionBar: View {
             Spacer()
             Button("Select Safe") { store.selectAllSafe() }
                 .disabled(store.isScanning)
+            Button("Delete…") { store.confirmation = .delete }
+                .disabled(store.selection.isEmpty || store.isScanning || store.isTrashing || store.isStale)
+                .help("Delete for good, skipping the Trash. Asks first.")
             Button {
-                confirming = true
+                store.confirmation = .trash
             } label: {
                 if store.isTrashing {
                     ProgressView().controlSize(.small)

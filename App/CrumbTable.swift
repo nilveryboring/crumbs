@@ -26,8 +26,7 @@ struct CrumbTable: View {
                             if on { store.selection.insert(crumb.id) } else { store.selection.remove(crumb.id) }
                         }))
                     .labelsHidden()
-                    .disabled(crumb.verdict == .keep)
-                    .help(crumb.verdict == .keep ? "In use or holds unique work" : "")
+                    .help(crumb.verdict == .keep ? "Marked Keep: in use or holds unique work. You can still pick it; Crumbs asks before it goes." : "")
                 }
             }
             .width(22)

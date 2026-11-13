@@ -38,8 +38,7 @@ enum GitInspector {
         let branch = Shell.git(["symbolic-ref", "--quiet", "--short", "HEAD"], in: directory)
         info.branch = branch.status == 0 && !branch.output.isEmpty ? branch.output : nil
 
-        let status = Shell.git(["status", "--porcelain", "--untracked-files=normal"], in: directory)
-        info.dirtyFiles = status.output.isEmpty ? 0 : status.output.split(separator: "\n").count
+        info.dirtyFiles = uncommitted(in: directory).count
 
         if let seconds = TimeInterval(Shell.git(["log", "-1", "--format=%ct"], in: directory).output) {
             info.lastCommit = Date(timeIntervalSince1970: seconds)
@@ -59,6 +58,26 @@ enum GitInspector {
             info.unmergedCommits = unmerged
         }
         return info
+    }
+
+    /// Untracked folders a package manager or build fills back in. A repository
+    /// that forgot to ignore them should not make a checkout look unique.
+    static let regenerableNames: Set = ["node_modules", ".next", ".turbo", ".venv", "__pycache__", ".DS_Store"]
+
+    /// `git status` entries that are real work: (two-letter code, path).
+    static func uncommitted(in directory: String) -> [(code: String, path: String)] {
+        let status = Shell.git(["status", "--porcelain", "--untracked-files=normal"], in: directory).output
+        return status.split(separator: "\n").compactMap { line in
+            guard line.count > 2 else { return nil }
+            // Shell.run trims the output, so the first line may have lost its leading space.
+            let code = String(line.prefix(2))
+            var path = line.dropFirst(2).trimmingCharacters(in: .whitespaces)
+            if let arrow = path.range(of: " -> ") { path = String(path[arrow.upperBound...]) }
+            path = path.trimmingCharacters(in: CharacterSet(charactersIn: "\""))
+            let name = ((path.hasSuffix("/") ? String(path.dropLast()) : path) as NSString).lastPathComponent
+            if code == "??", regenerableNames.contains(name) { return nil }
+            return (code, path)
+        }
     }
 
     /// Drops secret-looking files that don't make a worktree unique: tracked

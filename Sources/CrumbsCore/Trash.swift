@@ -10,9 +10,11 @@ public struct TrashOutcome: Sendable {
 }
 
 public enum Trasher {
-    /// Moves crumbs to the Trash (never deletes), then lets git forget any
-    /// worktree it just lost so `git worktree list` stays honest.
-    public static func trash(_ crumbs: [Crumb]) -> [TrashOutcome] {
+    /// Moves crumbs to the Trash, then lets git forget any worktree it just
+    /// lost so `git worktree list` stays honest. With `permanently` the
+    /// crumbs are deleted outright: the space is back at once and nothing
+    /// can be put back, so callers ask the user first.
+    public static func trash(_ crumbs: [Crumb], permanently: Bool = false) -> [TrashOutcome] {
         let fm = FileManager.default
         var outcomes: [TrashOutcome] = []
         var repositoriesToPrune = Set<String>()
@@ -22,7 +24,7 @@ public enum Trasher {
             let url = URL(fileURLWithPath: crumb.path)
             var resulting: NSURL?
             do {
-                try fm.trashItem(at: url, resultingItemURL: &resulting)
+                if permanently { try fm.removeItem(at: url) } else { try fm.trashItem(at: url, resultingItemURL: &resulting) }
                 outcomes.append(TrashOutcome(path: crumb.path, trashedTo: resulting?.path, error: nil, freed: crumb.size,
                                              forgotten: nil))
                 if let id = crumb.codexSessionID { chats.append((outcomes.count - 1, id)) }
@@ -30,7 +32,9 @@ public enum Trasher {
                 let parent = url.deletingLastPathComponent()
                 if let pattern = crumb.emptyParentPattern, Glob(pattern).matches(parent.path) {
                     let rest = (try? fm.contentsOfDirectory(atPath: parent.path))?.filter { $0 != ".DS_Store" } ?? ["?"]
-                    if rest.isEmpty { try? fm.trashItem(at: parent, resultingItemURL: nil) }
+                    if rest.isEmpty {
+                        if permanently { try? fm.removeItem(at: parent) } else { try? fm.trashItem(at: parent, resultingItemURL: nil) }
+                    }
                 }
             } catch {
                 outcomes.append(TrashOutcome(path: crumb.path, trashedTo: nil, error: error.localizedDescription, freed: 0, forgotten: nil))
