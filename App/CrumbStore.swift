@@ -16,6 +16,9 @@ final class CrumbStore {
     private(set) var crumbs: [Crumb] = []
     private(set) var isScanning = false
     private(set) var progress: ScanProgress?
+    @ObservationIgnored private var latestProgress: ScanProgress?
+    @ObservationIgnored private var arrivals: [Crumb] = []
+    @ObservationIgnored private var flushScheduled = false
     private(set) var lastScan: Date?
     private(set) var isTrashing = false
     var selection = Set<Crumb.ID>()
@@ -144,6 +147,7 @@ final class CrumbStore {
         notice = nil
         crumbs = []
         allCrumbs = []
+        arrivals = []
         let roots = roots
         let rules = builtInRules // scan everything; overrides are applied by rejudge()
         Task {
@@ -197,14 +201,32 @@ final class CrumbStore {
         }
     }
 
+    /// A scan reports thousands of crumbs, the chats all at once. Showing each
+    /// one as it arrives redraws the whole table every time and freezes the
+    /// window, so they are collected and shown a few times a second.
     private func receive(_ progress: ScanProgress) {
         guard isScanning else { return }
-        self.progress = progress
-        if let found = progress.latest, !crumbs.contains(where: { $0.id == found.id }),
-           let crumb = judged(found) {
-            let index = crumbs.firstIndex { $0.size < crumb.size } ?? crumbs.endIndex
-            crumbs.insert(crumb, at: index)
+        latestProgress = progress
+        if let found = progress.latest { arrivals.append(found) }
+        guard !flushScheduled else { return }
+        flushScheduled = true
+        Task { [weak self] in
+            try? await Task.sleep(for: .milliseconds(300))
+            self?.showArrivals()
         }
+    }
+
+    private func showArrivals() {
+        flushScheduled = false
+        let found = arrivals
+        arrivals = []
+        guard isScanning else { return }
+        progress = latestProgress
+        guard !found.isEmpty else { return }
+        var known = Set(crumbs.map(\.id))
+        let fresh = found.filter { known.insert($0.id).inserted }.compactMap(judged)
+        guard !fresh.isEmpty else { return }
+        crumbs = (crumbs + fresh).sorted { $0.size > $1.size }
     }
 
     /// Stores only what differs from the built-in default, so a rule the user
@@ -222,7 +244,8 @@ final class CrumbStore {
     private func rejudge() {
         guard !isScanning else { return }
         crumbs = allCrumbs.compactMap(judged)
-        selection = selection.filter { id in crumbs.contains { $0.id == id } }
+        let present = Set(crumbs.map(\.id))
+        selection = selection.filter(present.contains)
     }
 
     private func judged(_ crumb: Crumb) -> Crumb? {
