@@ -128,6 +128,14 @@ enum GitInspector {
         return Date(timeIntervalSince1970: seconds)
     }
 
+    /// Worktrees git still lists for a repository although their folder is gone.
+    static func staleWorktreeRecords(in repository: String) -> Int {
+        guard FileManager.default.fileExists(atPath: repository + "/.git/worktrees") else { return 0 }
+        let listed = Shell.git(["worktree", "list", "--porcelain"], in: repository)
+        guard listed.status == 0 else { return 0 }
+        return listed.output.split(separator: "\n").filter { $0.hasPrefix("prunable") }.count
+    }
+
     static func pruneWorktrees(commonDir: String) {
         _ = Shell.run(Shell.git, ["--git-dir=\(commonDir)", "worktree", "prune"])
     }

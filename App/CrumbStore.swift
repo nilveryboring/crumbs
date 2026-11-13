@@ -26,6 +26,9 @@ final class CrumbStore {
         didSet { UserDefaults.standard.set(groupByProject, forKey: "groupByProject") }
     }
     var notice: String?
+    /// Dead records in Codex and git that a "Tidy Up" can clear.
+    private(set) var looseEnds = LooseEnds()
+    private(set) var isTidying = false
     /// What Crumbs moved to the Trash that is still there. Trashing frees no
     /// space until the Trash is emptied, so the UI keeps saying so.
     private(set) var inTrash: [TrashedItem] = []
@@ -143,6 +146,34 @@ final class CrumbStore {
             isScanning = false
             rejudge() // also drops picks that are gone or no longer pickable
             saveCache()
+            findLooseEnds()
+        }
+    }
+
+    private func findLooseEnds() {
+        let repositories = Array(Set(allCrumbs.compactMap(\.project)))
+        let roots = roots
+        Task {
+            looseEnds = await Task.detached(priority: .utility) {
+                LooseEnds.find(repositories: repositories, roots: roots)
+            }.value
+        }
+    }
+
+    func tidyUp() {
+        guard !isTidying, !looseEnds.isEmpty else { return }
+        isTidying = true
+        let ends = looseEnds
+        Task {
+            let left = await Task.detached(priority: .userInitiated) { ends.tidy() }.value
+            let chats = ends.deadChats.count - left.deadChats.count
+            let worktrees = ends.staleWorktreeCount - left.staleWorktreeCount
+            var parts: [String] = []
+            if chats > 0 { parts.append("\(chats) dead chat\(chats == 1 ? "" : "s") from Codex's list") }
+            if worktrees > 0 { parts.append("\(worktrees) stale worktree record\(worktrees == 1 ? "" : "s")") }
+            notice = parts.isEmpty ? "Couldn't tidy up: is the codex command installed?" : "Removed \(parts.joined(separator: " and "))."
+            looseEnds = left
+            isTidying = false
         }
     }
 
@@ -234,6 +265,7 @@ final class CrumbStore {
             notice = lines.joined(separator: " ")
             isTrashing = false
             saveCache()
+            findLooseEnds()
         }
     }
 

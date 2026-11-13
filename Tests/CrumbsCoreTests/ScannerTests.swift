@@ -315,4 +315,31 @@ extension ScannerTests {
         #expect(found[repo + "/tmp/old-task"]?.ruleID == "scratch-tmp")
         #expect(found[repo + "/tmp/new-task"]?.project == repo)
     }
+
+    @Test func looseEndsAreFoundAndTidied() async throws {
+        let repo = try makeRepo()
+        let wt = root + "/wt-gone"
+        git(["worktree", "add", "-q", "-b", "gone", wt], in: repo)
+        try FileManager.default.removeItem(atPath: wt) // what a cut-short clean-up leaves
+
+        let home = root + "/codex-home"
+        try FileManager.default.createDirectory(atPath: home, withIntermediateDirectories: true)
+        let kept = home + "/kept.jsonl"
+        try write(kept)
+        _ = Shell.run("/usr/bin/sqlite3", [home + "/state_5.sqlite", """
+            CREATE TABLE threads (id TEXT PRIMARY KEY, rollout_path TEXT NOT NULL, originator TEXT);
+            INSERT INTO threads VALUES ('dead-companion', '\(home)/missing.jsonl', 'Claude Code');
+            INSERT INTO threads VALUES ('alive', '\(kept)', 'codex_exec');
+            INSERT INTO threads VALUES ('someone-elses', '\(home)/missing-2.jsonl', 'Codex Desktop');
+            """])
+
+        let ends = LooseEnds.find(codexHome: home, repositories: [repo, repo])
+        #expect(ends.deadChats == ["dead-companion"])
+        #expect(ends.staleWorktrees == [repo: 1])
+
+        // Only the git half: tidying chats needs a real Codex install.
+        let left = LooseEnds(staleWorktrees: ends.staleWorktrees).tidy()
+        #expect(left.staleWorktrees.isEmpty)
+        #expect(!git(["worktree", "list"], in: repo).contains("wt-gone"))
+    }
 }

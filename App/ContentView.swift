@@ -187,6 +187,19 @@ private struct ActionBar: View {
     @Environment(CrumbStore.self) private var store
     @Binding var confirming: Bool
 
+    private var looseEndsText: String {
+        let ends = store.looseEnds
+        var parts: [String] = []
+        if !ends.deadChats.isEmpty {
+            parts.append("Codex still lists \(ends.deadChats.count) chat\(ends.deadChats.count == 1 ? "" : "s") whose transcript is gone")
+        }
+        if ends.staleWorktreeCount > 0 {
+            let n = ends.staleWorktreeCount
+            parts.append("git still lists \(n) worktree\(n == 1 ? "" : "s") whose folder is gone")
+        }
+        return parts.joined(separator: "; ") + "."
+    }
+
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
@@ -195,6 +208,19 @@ private struct ActionBar: View {
                 } else if store.isStale, !store.crumbs.isEmpty, !store.isScanning {
                     Label("These results are over an hour old. Scan again before trashing.", systemImage: "clock.arrow.circlepath")
                         .foregroundStyle(.orange)
+                }
+                if !store.looseEnds.isEmpty {
+                    HStack(spacing: 8) {
+                        Label(looseEndsText, systemImage: "link.badge.plus")
+                            .symbolRenderingMode(.hierarchical)
+                        if store.isTidying {
+                            ProgressView().controlSize(.small)
+                        } else {
+                            Button("Tidy Up") { store.tidyUp() }
+                                .buttonStyle(.link)
+                                .help("Removes the records only. No files are touched.")
+                        }
+                    }
                 }
                 if store.inTrashSize > 0 {
                     HStack(spacing: 8) {

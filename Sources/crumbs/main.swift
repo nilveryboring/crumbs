@@ -100,3 +100,12 @@ print("""
   \(dot[.caution]!) check \(bytes(byVerdict[.caution] ?? 0))
   \(dot[.keep]!) keep  \(bytes(byVerdict[.keep] ?? 0))
 """)
+
+let ends = LooseEnds.find(repositories: Array(Set(crumbs.compactMap(\.project))), roots: roots)
+if !ends.isEmpty {
+    print("\nLoose ends (the app's Tidy Up clears them; no files involved):")
+    if !ends.deadChats.isEmpty { print("  Codex lists \(ends.deadChats.count) chats whose transcript is gone") }
+    for (repository, count) in ends.staleWorktrees.sorted(by: { $0.key < $1.key }) {
+        print("  git lists \(count) worktrees whose folder is gone in \(repository)")
+    }
+}

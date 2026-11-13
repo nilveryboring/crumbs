@@ -117,14 +117,18 @@ public enum CodexChats {
     /// its own list. Codex keeps that list in a database only it should write.
     /// Returns false when Codex still lists the chat.
     static func forget(sessionID: String, transcript: String) -> Bool {
-        guard let codex else { return false }
         // <home>/sessions/YYYY/MM/DD/rollout-….jsonl
         var home = transcript as NSString
         for _ in 0..<5 { home = home.deletingLastPathComponent as NSString }
+        return forget(sessionID: sessionID, home: home as String)
+    }
+
+    static func forget(sessionID: String, home: String) -> Bool {
+        guard let codex else { return false }
         let bin = (codex as NSString).deletingLastPathComponent
         let path = ProcessInfo.processInfo.environment["PATH"] ?? "/usr/bin:/bin"
         let result = Shell.run(codex, ["delete", "--force", sessionID],
-                               environment: ["CODEX_HOME": home as String, "PATH": bin + ":" + path])
+                               environment: ["CODEX_HOME": home, "PATH": bin + ":" + path])
         return result.status == 0
     }
 }
