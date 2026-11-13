@@ -36,7 +36,7 @@ import Testing
     }
 
     func scan() async -> [String: Crumb] {
-        let crumbs = await CrumbScanner(now: later).scan(roots: [root])
+        let crumbs = await CrumbScanner(codexHome: nil, now: later).scan(roots: [root])
         return Dictionary(uniqueKeysWithValues: crumbs.map { ($0.path, $0) })
     }
 
@@ -181,7 +181,7 @@ import Testing
     @Test func freshCrumbsAreKept() async throws {
         let repo = try makeRepo()
         try write(repo + "/node_modules/pkg/index.js")
-        let crumbs = await CrumbScanner().scan(roots: [root]) // real clock
+        let crumbs = await CrumbScanner(codexHome: nil).scan(roots: [root]) // real clock
         #expect(crumbs.first { $0.path == repo + "/node_modules" }?.verdict == .keep)
     }
 
@@ -209,7 +209,7 @@ extension ScannerTests {
         #expect(crumb.verdict == .safe)
 
         try write(wt + "/written-after-scan.txt")
-        let fresh = CrumbScanner(now: later).recheck(crumb)
+        let fresh = CrumbScanner(codexHome: nil, now: later).recheck(crumb)
         #expect(fresh.verdict == .keep)
     }
 }
@@ -230,11 +230,11 @@ extension ScannerTests {
         let repo = try makeRepo()
         try write(repo + "/node_modules/pkg/index.js")
         // 40 days idle: safe under the 30-day default, "check" under 60.
-        let before = await CrumbScanner(now: later).scan(roots: [root]).first { $0.ruleID == "node-modules" }
+        let before = await CrumbScanner(codexHome: nil, now: later).scan(roots: [root]).first { $0.ruleID == "node-modules" }
         #expect(before?.verdict == .safe)
 
         let rules = Rule.builtIn().applying(["node-modules": RuleOverride(minIdleDays: 60)])
-        let after = await CrumbScanner(rules: rules, now: later).scan(roots: [root]).first { $0.ruleID == "node-modules" }
+        let after = await CrumbScanner(rules: rules, codexHome: nil, now: later).scan(roots: [root]).first { $0.ruleID == "node-modules" }
         #expect(after?.verdict == .caution)
     }
 
@@ -245,8 +245,43 @@ extension ScannerTests {
         try write(wt + "/node_modules/pkg/index.js")
 
         let rules = Rule.builtIn().applying(["git-worktree": RuleOverride(enabled: false)])
-        let crumbs = await CrumbScanner(rules: rules, now: later).scan(roots: [root])
+        let crumbs = await CrumbScanner(rules: rules, codexHome: nil, now: later).scan(roots: [root])
         #expect(!crumbs.contains { $0.path == wt })
         #expect(!crumbs.contains { $0.path.hasPrefix(wt + "/") })
+    }
+
+    @Test func codexCompanionChatsAreFoundByWhoStartedThem() async throws {
+        let home = root + "/codex-home"
+        let day = home + "/sessions/2026/11/12"
+        let mine = "01a1d28f-d81f-7b01-aa63-898d08201aae"
+        let other = "01a1d27d-684a-7f93-a7da-fdbdd39d5d89"
+        func header(_ originator: String) -> String {
+            #"{"type":"session_meta","payload":{"originator":"\#(originator)","source":"vscode"}}"# + "\n{}\n"
+        }
+        let chat = day + "/rollout-2026-11-12T17-40-04-\(mine).jsonl"
+        try write(chat, header("Claude Code"))
+        try write(day + "/rollout-2026-11-12T17-19-56-\(other).jsonl", header("Codex Desktop"))
+        try write(home + "/session_index.jsonl",
+                  #"{"id":"\#(mine)","thread_name":"Codex Companion Task: Review the diff"}"# + "\n")
+
+        let crumbs = await CrumbScanner(codexHome: home, now: later).scan(roots: [root])
+        let chats = crumbs.filter { $0.category == .chat }
+        #expect(chats.map(\.path) == [chat])
+        let crumb = try #require(chats.first)
+        #expect(crumb.name == "Review the diff")
+        #expect(crumb.codexSessionID == mine)
+        #expect(crumb.verdict == .safe)
+
+        let fresh = await CrumbScanner(codexHome: home).scan(roots: [root]).first { $0.category == .chat }
+        #expect(fresh?.verdict == .keep) // written minutes ago: the task may still be running
+        let hoursLater = await CrumbScanner(codexHome: home, now: { Date().addingTimeInterval(3 * 3_600) })
+            .scan(roots: [root]).first { $0.category == .chat }
+        #expect(hoursLater?.verdict == .safe) // a finished task does not wait a day
+
+        let off = Rule.builtIn().applying([CodexChats.ruleID: RuleOverride(enabled: false)])
+        #expect(await CrumbScanner(rules: off, codexHome: home, now: later).scan(roots: [root]).allSatisfy { $0.category != .chat })
+
+        _ = Trasher.trash([crumb])
+        #expect(!FileManager.default.fileExists(atPath: chat))
     }
 }

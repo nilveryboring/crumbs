@@ -5,6 +5,8 @@ public struct TrashOutcome: Sendable {
     public var trashedTo: String?
     public var error: String?
     public var freed: Int64
+    /// For chats: false when the owning app still lists it after the move.
+    public var forgotten: Bool?
 }
 
 public enum Trasher {
@@ -20,7 +22,9 @@ public enum Trasher {
             var resulting: NSURL?
             do {
                 try fm.trashItem(at: url, resultingItemURL: &resulting)
-                outcomes.append(TrashOutcome(path: crumb.path, trashedTo: resulting?.path, error: nil, freed: crumb.size))
+                let forgotten = crumb.codexSessionID.map { CodexChats.forget(sessionID: $0, transcript: crumb.path) }
+                outcomes.append(TrashOutcome(path: crumb.path, trashedTo: resulting?.path, error: nil, freed: crumb.size,
+                                             forgotten: forgotten))
                 if let commonDir = crumb.worktree?.commonDir { repositoriesToPrune.insert(commonDir) }
                 let parent = url.deletingLastPathComponent()
                 if let pattern = crumb.emptyParentPattern, Glob(pattern).matches(parent.path) {
@@ -28,7 +32,7 @@ public enum Trasher {
                     if rest.isEmpty { try? fm.trashItem(at: parent, resultingItemURL: nil) }
                 }
             } catch {
-                outcomes.append(TrashOutcome(path: crumb.path, trashedTo: nil, error: error.localizedDescription, freed: 0))
+                outcomes.append(TrashOutcome(path: crumb.path, trashedTo: nil, error: error.localizedDescription, freed: 0, forgotten: nil))
             }
         }
 

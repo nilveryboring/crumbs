@@ -78,6 +78,7 @@ private struct RulesSettings: View {
 
     private func label(_ days: Int) -> String {
         switch days {
+        case 0: "1 hour"
         case 1: "1 day"
         case 365: "1 year"
         default: "\(days) days"

@@ -15,7 +15,8 @@ enum Shell {
         return "/usr/bin/git"
     }()
 
-    static func run(_ executable: String, _ arguments: [String], in directory: String? = nil) -> Result {
+    static func run(_ executable: String, _ arguments: [String], in directory: String? = nil,
+                    environment: [String: String] = [:]) -> Result {
         let process = Process()
         process.executableURL = URL(fileURLWithPath: executable)
         process.arguments = arguments
@@ -24,6 +25,7 @@ enum Shell {
         env["GIT_OPTIONAL_LOCKS"] = "0" // never take index.lock while another agent is committing
         env["GIT_TERMINAL_PROMPT"] = "0"
         env["LC_ALL"] = "C"
+        env.merge(environment) { _, new in new }
         process.environment = env
         let pipe = Pipe()
         process.standardOutput = pipe

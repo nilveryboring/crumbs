@@ -24,6 +24,7 @@ public enum CrumbCategory: String, Codable, Sendable, CaseIterable {
     case scratch
     case testOutput
     case cache
+    case chat
 
     public var label: String {
         switch self {
@@ -33,6 +34,7 @@ public enum CrumbCategory: String, Codable, Sendable, CaseIterable {
         case .scratch: "Scratch"
         case .testOutput: "Test output"
         case .cache: "Caches"
+        case .chat: "Agent chats"
         }
     }
 }
@@ -101,13 +103,18 @@ public struct Crumb: Identifiable, Codable, Sendable, Hashable {
     public var processes: [ProcessRef]
     public var verdict: Verdict
     public var reasons: [Reason]
+    /// What the owning app calls it, when that is not the file name (chats).
+    public var title: String?
+    /// Set for Codex chats: the id Codex knows the chat by.
+    public var codexSessionID: String?
 
-    public var name: String { (path as NSString).lastPathComponent }
+    public var name: String { title ?? (path as NSString).lastPathComponent }
 
     public init(path: String, ruleID: String, ruleName: String, category: CrumbCategory, regenerable: Bool,
                 emptyParentPattern: String? = nil, size: Int64, fileCount: Int, lastActivity: Date?,
                 worktree: WorktreeInfo? = nil, secrets: [String] = [], processes: [ProcessRef] = [],
-                verdict: Verdict = .safe, reasons: [Reason] = []) {
+                verdict: Verdict = .safe, reasons: [Reason] = [],
+                title: String? = nil, codexSessionID: String? = nil) {
         self.path = path
         self.ruleID = ruleID
         self.ruleName = ruleName
@@ -122,5 +129,7 @@ public struct Crumb: Identifiable, Codable, Sendable, Hashable {
         self.processes = processes
         self.verdict = verdict
         self.reasons = reasons
+        self.title = title
+        self.codexSessionID = codexSessionID
     }
 }

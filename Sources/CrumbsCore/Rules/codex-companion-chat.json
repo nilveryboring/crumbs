@@ -1,0 +1,10 @@
+{
+  "id": "codex-companion-chat",
+  "name": "Codex chat from Claude Code",
+  "category": "chat",
+  "description": "A \"Codex Companion Task\" chat that Claude Code started in Codex through the Codex plugin. Trashing it also takes it off Codex's chat list.",
+  "patterns": [],
+  "regenerable": false,
+  "activity": "self",
+  "minIdleDays": 0
+}

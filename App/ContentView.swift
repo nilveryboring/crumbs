@@ -229,6 +229,7 @@ extension CrumbCategory {
         case .scratch: "scribble"
         case .testOutput: "checklist"
         case .cache: "internaldrive"
+        case .chat: "bubble.left.and.bubble.right"
         }
     }
 }

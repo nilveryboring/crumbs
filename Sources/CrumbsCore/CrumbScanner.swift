@@ -20,14 +20,18 @@ public struct CrumbScanner: Sendable {
     public var rules: [Rule]
     public var maxDepth: Int
     public var concurrency: Int
+    /// Where Codex keeps its chats. Nil skips them.
+    public var codexHome: String?
     /// Injected so tests can pretend a fresh fixture is weeks old.
     public var now: @Sendable () -> Date
 
     public init(rules: [Rule] = Rule.builtIn(), maxDepth: Int = 9, concurrency: Int = max(4, ProcessInfo.processInfo.activeProcessorCount),
+                codexHome: String? = CodexChats.defaultHome(),
                 now: @escaping @Sendable () -> Date = { Date() }) {
         self.rules = rules
         self.maxDepth = maxDepth
         self.concurrency = concurrency
+        self.codexHome = codexHome
         self.now = now
     }
 
@@ -50,10 +54,14 @@ public struct CrumbScanner: Sendable {
         progress(ScanProgress(phase: "Looking for crumbs", completed: 0, total: 0))
         let candidates = discover(roots: roots)
         let processes = ProcessSnapshot.capture()
-        let total = candidates.count
+        let chats = chatCrumbs()
+        let total = candidates.count + chats.count
         progress(ScanProgress(phase: "Measuring", completed: 0, total: total))
 
-        var crumbs: [Crumb] = []
+        var crumbs: [Crumb] = chats
+        for (index, chat) in chats.enumerated() {
+            progress(ScanProgress(phase: "Measuring", completed: index + 1, total: total, latest: chat))
+        }
         await withTaskGroup(of: Crumb.self) { group in
             var iterator = candidates.makeIterator()
             for _ in 0..<max(1, concurrency) {
@@ -177,6 +185,20 @@ public struct CrumbScanner: Sendable {
         return crumb
     }
 
+    // MARK: Chats
+
+    func chatCrumbs() -> [Crumb] {
+        guard let codexHome, let rule = rules.first(where: { $0.id == CodexChats.ruleID }) else { return [] }
+        return CodexChats.find(home: codexHome).map { chat in
+            let stats = CodexChats.stats(of: chat.path)
+            var crumb = Crumb(path: chat.path, ruleID: rule.id, ruleName: rule.name, category: rule.category,
+                              regenerable: rule.regenerable, size: stats.size, fileCount: 1,
+                              lastActivity: stats.modified, title: chat.title, codexSessionID: chat.sessionID)
+            (crumb.verdict, crumb.reasons) = Judge.evaluate(crumb, rule: rule, now: now())
+            return crumb
+        }
+    }
+
     // MARK: Recheck
 
     /// Fast re-verification right before trashing: fresh process and git
@@ -193,6 +215,9 @@ public struct CrumbScanner: Sendable {
         fresh.processes = ProcessSnapshot.capture().processes(inside: crumb.path)
         if crumb.worktree != nil {
             fresh.worktree = GitInspector.inspectWorktree(at: crumb.path)
+        }
+        if crumb.codexSessionID != nil { // a chat picked up again since the scan
+            fresh.lastActivity = CodexChats.stats(of: crumb.path).modified
         }
         (fresh.verdict, fresh.reasons) = Judge.evaluate(fresh, rule: rule, now: now())
         return fresh

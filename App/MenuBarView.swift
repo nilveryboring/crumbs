@@ -17,7 +17,7 @@ struct MenuBarView: View {
             }
 
             VStack(alignment: .leading, spacing: 4) {
-                ForEach([CrumbCategory.worktree, .dependencies, .build, .cache, .scratch, .testOutput], id: \.self) { category in
+                ForEach([CrumbCategory.worktree, .dependencies, .build, .cache, .scratch, .testOutput, .chat], id: \.self) { category in
                     let size = store.crumbs.filter { $0.category == category && $0.verdict == .safe }.reduce(0) { $0 + $1.size }
                     if size > 0 {
                         HStack {

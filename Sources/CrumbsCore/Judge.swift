@@ -39,14 +39,23 @@ public enum Judge {
             let idle = now.timeIntervalSince(activity)
             let days = Int(idle / 86_400)
             let subject = rule.activity == .parent ? "Project changed" : "Changed"
-            if idle < 86_400 {
-                let hours = max(0, Int(idle / 3_600))
+            let hours = max(0, Int(idle / 3_600))
+            if crumb.codexSessionID != nil, idle < 3_600 {
+                // A chat has no folder for a process to sit in; a recent write is the only sign it is live.
+                reasons.append(Reason(.keep, "Written to in the last hour, so the task may still be running"))
+            } else if crumb.codexSessionID != nil, days < 1, rule.minIdleDays == 0 {
+                reasons.append(Reason(.safe, "Finished: nothing has written to it for \(plural(hours, "hour"))"))
+            } else if idle < 86_400 {
                 reasons.append(Reason(.keep, "\(subject) \(hours == 0 ? "just now" : "\(plural(hours, "hour")) ago")"))
             } else if days < rule.minIdleDays {
                 reasons.append(Reason(.caution, "\(subject) \(plural(days, "day")) ago; this kind waits \(rule.minIdleDays) days"))
             } else {
                 reasons.append(Reason(.safe, "Untouched for \(plural(days, "day"))"))
             }
+        }
+
+        if crumb.codexSessionID != nil {
+            reasons.append(Reason(.safe, "Only the chat transcript goes. The files and commits the task made stay where they are"))
         }
 
         if rule.regenerable {

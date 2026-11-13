@@ -192,6 +192,10 @@ final class CrumbStore {
             if !blocked.isEmpty {
                 lines.append("Skipped \(blocked.count) that changed since the scan: \(blocked.prefix(3).map(\.name).joined(separator: ", ")).")
             }
+            let listed = outcomes.filter { $0.forgotten == false }.count
+            if listed > 0 {
+                lines.append("Codex still lists \(listed) of the chats: Crumbs couldn't run the codex command to remove them.")
+            }
             let failures = outcomes.filter { $0.error != nil }
             if !failures.isEmpty {
                 lines.append("Couldn't move \(failures.count): \(failures[0].error ?? "")")
