@@ -13,6 +13,9 @@ struct MenuBarView: View {
                     Text(Format.bytes(store.size(of: .safe)))
                         .font(.system(size: 22, weight: .semibold, design: .rounded)).monospacedDigit()
                     Text("safe to clear").foregroundStyle(.secondary)
+                    if let disk = store.disk {
+                        Text("\(Format.bytes(disk.free)) free on this Mac").font(.caption).foregroundStyle(.secondary)
+                    }
                 }
             }
 

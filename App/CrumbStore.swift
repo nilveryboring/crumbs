@@ -26,6 +26,8 @@ final class CrumbStore {
         didSet { UserDefaults.standard.set(groupByProject, forKey: "groupByProject") }
     }
     var notice: String?
+    /// Free and total bytes on the disk that holds the home folder.
+    private(set) var disk: (free: Int64, total: Int64)?
     /// Dead records in Codex and git that a "Tidy Up" can clear.
     private(set) var looseEnds = LooseEnds()
     private(set) var isTidying = false
@@ -58,6 +60,7 @@ final class CrumbStore {
         if DemoData.enabled {
             allCrumbs = DemoData.crumbs()
             lastScan = Date().addingTimeInterval(-40)
+            disk = (61_300_000_000, 994_660_000_000)
             rejudge()
             if DemoData.afterTrashing {
                 let safe = crumbs.filter { $0.verdict == .safe }
@@ -72,10 +75,11 @@ final class CrumbStore {
         #endif
         loadCache()
         loadTrash()
+        refreshDisk()
         NotificationCenter.default.addObserver(
             forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.refreshTrash() }
+            MainActor.assumeIsolated { self?.refreshTrash(); self?.refreshDisk() }
         }
     }
 
@@ -150,7 +154,17 @@ final class CrumbStore {
         }
     }
 
+    /// What Finder calls "available": includes space macOS can reclaim on demand.
+    func refreshDisk() {
+        let home = URL(fileURLWithPath: NSHomeDirectory())
+        guard let values = try? home.resourceValues(forKeys: [.volumeAvailableCapacityForImportantUsageKey, .volumeTotalCapacityKey]),
+              let free = values.volumeAvailableCapacityForImportantUsage, let total = values.volumeTotalCapacity, total > 0
+        else { return }
+        disk = (free, Int64(total))
+    }
+
     private func findLooseEnds() {
+        refreshDisk()
         let repositories = Array(Set(allCrumbs.compactMap(\.project)))
         let roots = roots
         Task {

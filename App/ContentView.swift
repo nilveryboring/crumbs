@@ -135,7 +135,10 @@ private struct SummaryHeader: View {
             stat(.caution, "to check")
             stat(.keep, "in use or unique")
             Spacer()
-            status
+            VStack(alignment: .trailing, spacing: 6) {
+                status
+                if let disk = store.disk { DiskGauge(free: disk.free, total: disk.total) }
+            }
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 14)
@@ -162,6 +165,25 @@ private struct SummaryHeader: View {
                 .foregroundStyle(store.isStale ? .orange : .secondary)
                 .lineLimit(1)
         }
+    }
+}
+
+/// How full the Mac's disk is, so the numbers on the left have a scale.
+private struct DiskGauge: View {
+    var free: Int64
+    var total: Int64
+
+    var body: some View {
+        let used = 1 - Double(free) / Double(total)
+        VStack(alignment: .trailing, spacing: 4) {
+            Text("\(Format.bytes(free)) free of \(Format.bytes(total))")
+                .font(.callout.weight(.medium)).monospacedDigit().lineLimit(1).fixedSize()
+            ProgressView(value: min(max(used, 0), 1))
+                .tint(used > 0.9 ? .red : used > 0.8 ? .orange : .accentColor)
+                .frame(width: 170)
+        }
+        .help("Space available on this Mac's disk, as Finder reports it")
+        .accessibilityElement(children: .combine)
     }
 }
 
