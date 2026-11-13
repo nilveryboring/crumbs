@@ -51,8 +51,40 @@ public struct CrumbScanner: Sendable {
     }
 
     public func scan(roots: [String], progress: @escaping @Sendable (ScanProgress) -> Void = { _ in }) async -> [Crumb] {
+        await scan(roots: roots, previous: [], memory: nil, progress: progress).crumbs
+    }
+
+    /// A scan that reads again only the folders macOS says changed since the
+    /// scan `memory` came from, and carries size and file count over from
+    /// `previous` for the rest. Processes, git state and verdicts are always
+    /// fresh. Without a usable memory, or once a day, everything is read.
+    public func scan(roots: [String], previous: [Crumb], memory: ScanMemory?, fullScanEvery: TimeInterval = 24 * 3600,
+                     progress: @escaping @Sendable (ScanProgress) -> Void = { _ in }) async -> (crumbs: [Crumb], memory: ScanMemory?) {
         progress(ScanProgress(phase: "Looking for crumbs", completed: 0, total: 0))
-        let candidates = discover(roots: roots)
+        let canonicalRoots = roots.map { canonicalPath(($0 as NSString).expandingTildeInPath) }
+        let mark = ChangeJournal.mark(roots: canonicalRoots) // before reading, so changes made meanwhile count next time
+        var changes: ChangeJournal.Changes?
+        if let memory, !previous.isEmpty, now().timeIntervalSince(memory.fullScan) < fullScanEvery {
+            changes = ChangeJournal.changes(since: memory.mark, roots: canonicalRoots)
+        }
+        var unchanged: [String: Crumb] = [:]
+        if let changes {
+            for crumb in previous where crumb.codexSessionID == nil && !changes.touches(crumb.path) { unchanged[crumb.path] = crumb }
+        }
+        let known = unchanged
+        // Git state is carried over too while nothing in the repository's .git has changed.
+        let settled = Set(known.values.filter { crumb in
+            guard let changes else { return false }
+            // Rules that go by the project around them: nothing may have changed next to the folder either.
+            let besides = rules.first { $0.id == crumb.ruleID }?.activity == .parent
+            if besides, changes.touches((crumb.path as NSString).deletingLastPathComponent) { return false }
+            if let project = crumb.project { return !changes.touches(project + "/.git") }
+            return crumb.worktree == nil
+        }.map(\.path))
+        let fullScan = changes == nil ? now() : (memory?.fullScan ?? now())
+        let newMemory = mark.map { ScanMemory(mark: $0, fullScan: fullScan) }
+
+        let candidates = discover(roots: roots, unchanged: known, changes: changes)
         let processes = ProcessSnapshot.capture()
         let chats = chatCrumbs()
         let total = candidates.count + chats.count
@@ -66,29 +98,48 @@ public struct CrumbScanner: Sendable {
             var iterator = candidates.makeIterator()
             for _ in 0..<max(1, concurrency) {
                 guard let next = iterator.next() else { break }
-                group.addTask { inspect(next, processes: processes) }
+                group.addTask { inspect(next, processes: processes, known: known[next.path], settled: settled.contains(next.path)) }
             }
             for await crumb in group {
                 crumbs.append(crumb)
                 progress(ScanProgress(phase: "Measuring", completed: crumbs.count, total: total, latest: crumb))
                 if let next = iterator.next() {
-                    group.addTask { inspect(next, processes: processes) }
+                    group.addTask { inspect(next, processes: processes, known: known[next.path], settled: settled.contains(next.path)) }
                 }
             }
         }
-        return crumbs.sorted { $0.size > $1.size }
+        return (crumbs.sorted { $0.size > $1.size }, newMemory)
     }
 
     // MARK: Discovery
 
-    func discover(roots: [String]) -> [Candidate] {
+    /// With `changes`, a folder nothing changed under is not walked: what the
+    /// last scan found there (`unchanged`) is taken as it was.
+    func discover(roots: [String], unchanged: [String: Crumb] = [:], changes: ChangeJournal.Changes? = nil) -> [Candidate] {
         let globs = rules.map { rule in (rule, rule.patterns.map { Glob($0) }) }
         var found: [String: Candidate] = [:]
+        var below: [String: [Crumb]] = [:] // folder → the last scan's crumbs at or under it
+        if changes != nil {
+            for crumb in unchanged.values {
+                var path = crumb.path
+                while path.count > 1 {
+                    below[path, default: []].append(crumb)
+                    path = (path as NSString).deletingLastPathComponent
+                }
+            }
+        }
         var stack: [(String, Int)] = roots.map { (canonicalPath(($0 as NSString).expandingTildeInPath), 0) }
         var visited = Set<String>()
 
         while let (directory, depth) = stack.popLast() {
             guard visited.insert(directory).inserted else { continue }
+            if let changes, !changes.touches(directory) {
+                for crumb in below[directory] ?? [] {
+                    guard let rule = rules.first(where: { $0.id == crumb.ruleID }) else { continue }
+                    found[crumb.path] = Candidate(path: crumb.path, rule: rule, isWorktree: crumb.worktree != nil)
+                }
+                continue
+            }
             if depth > 0, let rule = matchingRule(path: directory, globs: globs) {
                 var parts: [String] = []
                 if rule.splitsIntoSubfolders {
@@ -155,9 +206,24 @@ public struct CrumbScanner: Sendable {
 
     // MARK: Inspection
 
-    func inspect(_ candidate: Candidate, processes: ProcessSnapshot) -> Crumb {
+    /// `known` is the same folder from the last scan, when nothing inside it
+    /// has changed since: its files are not read again.
+    /// `settled`: nothing in its repository's git data changed either, so git is not asked again.
+    func inspect(_ candidate: Candidate, processes: ProcessSnapshot, known: Crumb? = nil, settled: Bool = false) -> Crumb {
         let rule = candidate.rule
-        let stats = SizeInspector.stats(of: candidate.path, lookForSecrets: !rule.regenerable)
+        if settled, var crumb = known, crumb.ruleID == rule.id, crumb.folderID == Self.folderID(of: candidate.path) {
+            crumb.processes = processes.processes(inside: candidate.path)
+            (crumb.verdict, crumb.reasons) = Judge.evaluate(crumb, rule: rule, now: now())
+            return crumb
+        }
+        let stats: DirectoryStats
+        let folderID = Self.folderID(of: candidate.path)
+        if let known, known.ruleID == rule.id, let folderID, known.folderID == folderID {
+            stats = DirectoryStats(size: known.size, fileCount: known.fileCount,
+                                   newestModification: rule.activity == .self ? known.lastActivity : nil, secrets: known.secrets)
+        } else {
+            stats = SizeInspector.stats(of: candidate.path, lookForSecrets: !rule.regenerable)
+        }
         let worktree = candidate.isWorktree ? GitInspector.inspectWorktree(at: candidate.path) : nil
         var secrets = stats.secrets
         if worktree != nil {
@@ -191,8 +257,14 @@ public struct CrumbScanner: Sendable {
             reasons: [],
             project: GitInspector.project(of: candidate.path)
         )
+        crumb.folderID = folderID
         (crumb.verdict, crumb.reasons) = Judge.evaluate(crumb, rule: candidate.rule, now: now())
         return crumb
+    }
+
+    static func folderID(of path: String) -> UInt64? {
+        var info = stat()
+        return lstat(path, &info) == 0 ? UInt64(info.st_ino) : nil
     }
 
     // MARK: Chats

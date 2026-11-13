@@ -110,6 +110,9 @@ public struct Crumb: Identifiable, Codable, Sendable, Hashable {
     /// The repository this crumb belongs to: the main checkout, also for
     /// crumbs inside one of its worktrees.
     public var project: String?
+    /// Which folder on disk this was (its inode), so a rescan can tell when a
+    /// different folder has taken the same path.
+    public var folderID: UInt64?
 
     public var name: String { title ?? (path as NSString).lastPathComponent }
 

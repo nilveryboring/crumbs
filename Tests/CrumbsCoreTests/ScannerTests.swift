@@ -377,4 +377,36 @@ extension ScannerTests {
         #expect(risk.commits.count == 1 && risk.commits[0].hasSuffix("Keep this"))
         #expect(crumb.worktree?.dirtyFiles == 2)
     }
+
+    @Test func rescanReadsOnlyTheFoldersThatChanged() async throws {
+        let repo = try makeRepo()
+        try write(repo + "/package.json", "{}")
+        try write(repo + "/node_modules/a/index.js")
+        try write(repo + "/sub/package.json", "{}")
+        try write(repo + "/sub/node_modules/b/index.js")
+        let scanner = CrumbScanner(codexHome: nil, now: later)
+        let first = await scanner.scan(roots: [root], previous: [], memory: nil)
+        let memory = try #require(first.memory)
+        #expect(first.crumbs.count == 2)
+
+        // Mark what the first scan measured, then change one of the two folders.
+        let marked = first.crumbs.map { crumb in
+            var crumb = crumb
+            crumb.fileCount = 777
+            return crumb
+        }
+        try write(repo + "/sub/node_modules/b/deep/new.js", String(repeating: "x", count: 100_000))
+        try await Task.sleep(for: .seconds(2))
+
+        let second = await scanner.scan(roots: [root], previous: marked, memory: memory)
+        let byPath = Dictionary(uniqueKeysWithValues: second.crumbs.map { ($0.path, $0) })
+        #expect(byPath[repo + "/node_modules"]?.fileCount == 777) // carried over, not read again
+        #expect(byPath[repo + "/sub/node_modules"]?.fileCount == 2) // read again
+        #expect(second.memory?.fullScan == memory.fullScan)
+
+        // A day later everything is read again.
+        let stale = ScanMemory(mark: memory.mark, fullScan: later().addingTimeInterval(-2 * 86_400))
+        let third = await scanner.scan(roots: [root], previous: marked, memory: stale)
+        #expect(third.crumbs.allSatisfy { $0.fileCount != 777 })
+    }
 }

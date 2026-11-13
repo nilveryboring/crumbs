@@ -17,6 +17,8 @@ final class CrumbStore {
     private(set) var isScanning = false
     private(set) var progress: ScanProgress?
     @ObservationIgnored private var latestProgress: ScanProgress?
+    /// Lets the next scan read only the folders that changed since this one.
+    @ObservationIgnored private var scanMemory: ScanMemory?
     @ObservationIgnored private var arrivals: [Crumb] = []
     @ObservationIgnored private var flushScheduled = false
     private(set) var lastScan: Date?
@@ -146,15 +148,18 @@ final class CrumbStore {
         isScanning = true
         notice = nil
         crumbs = []
-        allCrumbs = []
         arrivals = []
         let roots = roots
         let rules = builtInRules // scan everything; overrides are applied by rejudge()
+        let previous = allCrumbs
+        let memory = scanMemory
+        allCrumbs = []
         Task {
-            let result = await CrumbScanner(rules: rules).scan(roots: roots) { progress in
+            let result = await CrumbScanner(rules: rules).scan(roots: roots, previous: previous, memory: memory) { progress in
                 Task { @MainActor [weak self] in self?.receive(progress) }
             }
-            allCrumbs = result
+            allCrumbs = result.crumbs
+            scanMemory = result.memory
             lastScan = Date()
             progress = nil
             isScanning = false
@@ -350,6 +355,7 @@ final class CrumbStore {
         var date: Date
         var roots: [String]
         var crumbs: [Crumb]
+        var memory: ScanMemory?
     }
 
     private var cacheURL: URL {
@@ -365,13 +371,14 @@ final class CrumbStore {
               cache.roots == roots
         else { return }
         allCrumbs = cache.crumbs
+        scanMemory = cache.memory
         lastScan = cache.date
         rejudge()
     }
 
     private func saveCache() {
         guard let lastScan else { return }
-        let cache = Cache(date: lastScan, roots: roots, crumbs: allCrumbs)
+        let cache = Cache(date: lastScan, roots: roots, crumbs: allCrumbs, memory: scanMemory)
         try? JSONEncoder().encode(cache).write(to: cacheURL, options: .atomic)
     }
 }
