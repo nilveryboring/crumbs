@@ -35,6 +35,10 @@ struct ContentView: View {
                 if store.isScanning {
                     ProgressView().controlSize(.small)
                 }
+                Toggle(isOn: $store.groupByProject) {
+                    Label("Group by Repository", systemImage: "folder")
+                }
+                .help("One row per repository, with its crumbs underneath")
                 Button {
                     store.scan()
                 } label: {
@@ -54,6 +58,10 @@ struct ContentView: View {
             if store.crumbs.isEmpty || store.isStale { store.scan() }
             #if DEBUG
             if ProcessInfo.processInfo.environment["CRUMBS_DEBUG_SETTINGS"] != nil { openSettings() }
+            if let name = ProcessInfo.processInfo.environment["CRUMBS_DEBUG_FILTER"],
+               let category = CrumbCategory(rawValue: name) {
+                store.filter = .category(category)
+            }
             if ProcessInfo.processInfo.environment["CRUMBS_DEBUG_FOCUS"] != nil {
                 store.focused = store.visible.first { $0.verdict == .caution && $0.category == .worktree }?.id
                 store.selectAllSafe()

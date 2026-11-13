@@ -2,9 +2,10 @@
   "id": "scratch-tmp",
   "name": "Ignored scratch folder",
   "category": "scratch",
-  "description": "Git-ignored tmp folder where agents and scripts drop working files.",
+  "description": "Git-ignored tmp folder where agents and scripts drop working files. Each subfolder is listed on its own, so old task folders can go while today's stay.",
   "patterns": ["**/tmp", "**/.tmp", "**/temp"],
   "requiresGitIgnored": true,
+  "splitsIntoSubfolders": true,
   "regenerable": false,
   "activity": "self",
   "minIdleDays": 7

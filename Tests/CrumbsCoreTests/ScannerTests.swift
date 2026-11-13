@@ -261,27 +261,58 @@ extension ScannerTests {
         let chat = day + "/rollout-2026-11-12T17-40-04-\(mine).jsonl"
         try write(chat, header("Claude Code"))
         try write(day + "/rollout-2026-11-12T17-19-56-\(other).jsonl", header("Codex Desktop"))
+        let exec = "01a1d36c-00d4-7173-9adb-f70eb25f2b6a"
+        try write(day + "/rollout-2026-11-12T21-40-33-\(exec).jsonl",
+                  #"{"type":"session_meta","payload":{"cwd":"/Users/me/Code/shop","originator":"codex_exec"}}"# + "\n")
         try write(home + "/session_index.jsonl",
                   #"{"id":"\#(mine)","thread_name":"Codex Companion Task: Review the diff"}"# + "\n")
 
         let crumbs = await CrumbScanner(codexHome: home, now: later).scan(roots: [root])
-        let chats = crumbs.filter { $0.category == .chat }
+        let execRun = try #require(crumbs.first { $0.ruleID == CodexChats.execRuleID })
+        #expect(execRun.name == "codex exec in shop")
+        #expect(execRun.codexSessionID == exec)
+        let chats = crumbs.filter { $0.ruleID == CodexChats.ruleID }
         #expect(chats.map(\.path) == [chat])
         let crumb = try #require(chats.first)
         #expect(crumb.name == "Review the diff")
         #expect(crumb.codexSessionID == mine)
         #expect(crumb.verdict == .safe)
 
-        let fresh = await CrumbScanner(codexHome: home).scan(roots: [root]).first { $0.category == .chat }
+        let fresh = await CrumbScanner(codexHome: home).scan(roots: [root]).first { $0.ruleID == CodexChats.ruleID }
         #expect(fresh?.verdict == .keep) // written minutes ago: the task may still be running
         let hoursLater = await CrumbScanner(codexHome: home, now: { Date().addingTimeInterval(3 * 3_600) })
-            .scan(roots: [root]).first { $0.category == .chat }
+            .scan(roots: [root]).first { $0.ruleID == CodexChats.ruleID }
         #expect(hoursLater?.verdict == .safe) // a finished task does not wait a day
 
         let off = Rule.builtIn().applying([CodexChats.ruleID: RuleOverride(enabled: false)])
-        #expect(await CrumbScanner(rules: off, codexHome: home, now: later).scan(roots: [root]).allSatisfy { $0.category != .chat })
+        #expect(await CrumbScanner(rules: off, codexHome: home, now: later).scan(roots: [root]).allSatisfy { $0.ruleID != CodexChats.ruleID })
 
         _ = Trasher.trash([crumb])
         #expect(!FileManager.default.fileExists(atPath: chat))
+    }
+
+    @Test func cratesInsideAWorktreeBelongToTheMainRepository() async throws {
+        let repo = try makeRepo()
+        let wt = repo + "/.claude/worktrees/agent-1"
+        git(["worktree", "add", "-q", "-b", "agent-1", wt], in: repo)
+        try write(repo + "/package.json", "{}")
+        try write(repo + "/node_modules/a/index.js")
+        #expect(GitInspector.project(of: wt + "/node_modules") == repo)
+        #expect(GitInspector.project(of: wt) == repo)
+        #expect(GitInspector.project(of: root + "/loose/node_modules") == nil)
+        let found = await scan()
+        #expect(found[repo + "/node_modules"]?.project == repo)
+        #expect(found[wt]?.project == repo)
+    }
+
+    @Test func sharedTmpIsListedOneTaskFolderAtATime() async throws {
+        let repo = try makeRepo()
+        try write(repo + "/tmp/old-task/out.txt")
+        try write(repo + "/tmp/new-task/out.txt")
+        try write(repo + "/tmp/loose.txt")
+        let found = await scan()
+        #expect(found[repo + "/tmp"] == nil)
+        #expect(found[repo + "/tmp/old-task"]?.ruleID == "scratch-tmp")
+        #expect(found[repo + "/tmp/new-task"]?.project == repo)
     }
 }

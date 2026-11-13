@@ -21,6 +21,10 @@ final class CrumbStore {
     var selection = Set<Crumb.ID>()
     var filter: Filter = .all
     var focused: Crumb.ID?
+    /// Show one row per repository, with its crumbs folded underneath.
+    var groupByProject: Bool = UserDefaults.standard.bool(forKey: "groupByProject") {
+        didSet { UserDefaults.standard.set(groupByProject, forKey: "groupByProject") }
+    }
     var notice: String?
     /// What Crumbs moved to the Trash that is still there. Trashing frees no
     /// space until the Trash is emptied, so the UI keeps saying so.
@@ -78,6 +82,33 @@ final class CrumbStore {
         switch filter {
         case .all: crumbs
         case .category(let category): crumbs.filter { $0.category == category }
+        }
+    }
+
+    struct ProjectGroup: Identifiable {
+        var header: Crumb
+        var members: [Crumb]
+        var id: String { header.id }
+    }
+
+    nonisolated static let groupRuleID = "project-group"
+
+    /// The visible crumbs, one group per repository. The header is a made-up
+    /// crumb carrying the totals so it can sit in the same table.
+    var visibleGroups: [ProjectGroup] {
+        Dictionary(grouping: visible, by: { $0.project ?? "" }).map { project, members in
+            let safe = members.filter { $0.verdict == .safe }.reduce(0) { $0 + $1.size }
+            let header = Crumb(
+                path: "project:" + project, ruleID: Self.groupRuleID,
+                ruleName: "\(members.count) crumb\(members.count == 1 ? "" : "s")",
+                category: members[0].category, regenerable: false,
+                size: members.reduce(0) { $0 + $1.size }, fileCount: members.reduce(0) { $0 + $1.fileCount },
+                lastActivity: members.compactMap(\.lastActivity).max(),
+                verdict: members.map(\.verdict).min() ?? .keep,
+                reasons: [Reason(.safe, safe > 0 ? "\(Format.bytes(safe)) safe to clear" : "Nothing safe to clear yet")],
+                title: project.isEmpty ? "Not in a repository" : (project as NSString).lastPathComponent,
+                project: project.isEmpty ? nil : project)
+            return ProjectGroup(header: header, members: members)
         }
     }
 

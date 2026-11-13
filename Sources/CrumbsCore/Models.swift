@@ -107,6 +107,9 @@ public struct Crumb: Identifiable, Codable, Sendable, Hashable {
     public var title: String?
     /// Set for Codex chats: the id Codex knows the chat by.
     public var codexSessionID: String?
+    /// The repository this crumb belongs to: the main checkout, also for
+    /// crumbs inside one of its worktrees.
+    public var project: String?
 
     public var name: String { title ?? (path as NSString).lastPathComponent }
 
@@ -114,7 +117,7 @@ public struct Crumb: Identifiable, Codable, Sendable, Hashable {
                 emptyParentPattern: String? = nil, size: Int64, fileCount: Int, lastActivity: Date?,
                 worktree: WorktreeInfo? = nil, secrets: [String] = [], processes: [ProcessRef] = [],
                 verdict: Verdict = .safe, reasons: [Reason] = [],
-                title: String? = nil, codexSessionID: String? = nil) {
+                title: String? = nil, codexSessionID: String? = nil, project: String? = nil) {
         self.path = path
         self.ruleID = ruleID
         self.ruleName = ruleName
@@ -131,5 +134,6 @@ public struct Crumb: Identifiable, Codable, Sendable, Hashable {
         self.reasons = reasons
         self.title = title
         self.codexSessionID = codexSessionID
+        self.project = project
     }
 }

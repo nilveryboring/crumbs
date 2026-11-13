@@ -30,10 +30,15 @@ public struct Rule: Codable, Sendable, Hashable {
     /// After trashing, also trash the parent when it is left empty and matches
     /// this glob (Codex nests some worktrees in a per-task folder).
     public var emptyParentPattern: String?
+    /// List each subfolder as its own crumb instead of the folder as a whole.
+    /// A shared tmp/ is always "changed just now"; the three-week-old task
+    /// folder inside it is not.
+    public var splitsIntoSubfolders: Bool
 
     public init(id: String, name: String, category: CrumbCategory, description: String, patterns: [String],
                 requiresGitIgnored: Bool = false, requiresSibling: String? = nil, regenerable: Bool,
-                activity: Activity = .self, minIdleDays: Int, emptyParentPattern: String? = nil) {
+                activity: Activity = .self, minIdleDays: Int, emptyParentPattern: String? = nil,
+                splitsIntoSubfolders: Bool = false) {
         self.id = id
         self.name = name
         self.category = category
@@ -45,11 +50,12 @@ public struct Rule: Codable, Sendable, Hashable {
         self.activity = activity
         self.minIdleDays = minIdleDays
         self.emptyParentPattern = emptyParentPattern
+        self.splitsIntoSubfolders = splitsIntoSubfolders
     }
 
     enum CodingKeys: String, CodingKey {
         case id, name, category, description, patterns, requiresGitIgnored, requiresSibling
-        case regenerable, activity, minIdleDays, emptyParentPattern
+        case regenerable, activity, minIdleDays, emptyParentPattern, splitsIntoSubfolders
     }
 
     public init(from decoder: Decoder) throws {
@@ -65,6 +71,7 @@ public struct Rule: Codable, Sendable, Hashable {
         activity = try c.decodeIfPresent(Activity.self, forKey: .activity) ?? .self
         minIdleDays = try c.decode(Int.self, forKey: .minIdleDays)
         emptyParentPattern = try c.decodeIfPresent(String.self, forKey: .emptyParentPattern)
+        splitsIntoSubfolders = try c.decodeIfPresent(Bool.self, forKey: .splitsIntoSubfolders) ?? false
     }
 
     /// Fallback for linked git worktrees no specific rule claims.

@@ -90,7 +90,16 @@ public struct CrumbScanner: Sendable {
         while let (directory, depth) = stack.popLast() {
             guard visited.insert(directory).inserted else { continue }
             if depth > 0, let rule = matchingRule(path: directory, globs: globs) {
-                found[directory] = Candidate(path: directory, rule: rule, isWorktree: GitInspector.isLinkedWorktree(directory))
+                var parts: [String] = []
+                if rule.splitsIntoSubfolders {
+                    BulkDirectory.forEach(directory) { entry in
+                        if entry.isDirectory, !Self.skippedNames.contains(entry.name) { parts.append(directory + "/" + entry.name) }
+                    }
+                }
+                // Only loose files inside: the folder itself is the crumb.
+                for path in parts.isEmpty ? [directory] : parts {
+                    found[path] = Candidate(path: path, rule: rule, isWorktree: GitInspector.isLinkedWorktree(path))
+                }
                 continue
             }
 
@@ -179,7 +188,8 @@ public struct CrumbScanner: Sendable {
             secrets: secrets,
             processes: processes.processes(inside: candidate.path),
             verdict: .safe,
-            reasons: []
+            reasons: [],
+            project: GitInspector.project(of: candidate.path)
         )
         (crumb.verdict, crumb.reasons) = Judge.evaluate(crumb, rule: candidate.rule, now: now())
         return crumb
@@ -188,8 +198,10 @@ public struct CrumbScanner: Sendable {
     // MARK: Chats
 
     func chatCrumbs() -> [Crumb] {
-        guard let codexHome, let rule = rules.first(where: { $0.id == CodexChats.ruleID }) else { return [] }
-        return CodexChats.find(home: codexHome).map { chat in
+        let chatRules = Dictionary(uniqueKeysWithValues: rules.filter { $0.category == .chat }.map { ($0.id, $0) })
+        guard let codexHome, !chatRules.isEmpty else { return [] }
+        return CodexChats.find(home: codexHome, ruleIDs: Set(chatRules.keys)).compactMap { chat in
+            guard let rule = chatRules[chat.ruleID] else { return nil }
             let stats = CodexChats.stats(of: chat.path)
             var crumb = Crumb(path: chat.path, ruleID: rule.id, ruleName: rule.name, category: rule.category,
                               regenerable: rule.regenerable, size: stats.size, fileCount: 1,

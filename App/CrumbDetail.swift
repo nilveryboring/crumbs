@@ -4,6 +4,7 @@ import SwiftUI
 struct CrumbDetail: View {
     @Environment(CrumbStore.self) private var store
     var crumb: Crumb
+    @State private var contents: (entries: [ContentEntry], more: Int)?
 
     var body: some View {
         ScrollView {
@@ -37,6 +38,28 @@ struct CrumbDetail: View {
                     }
                 }
 
+                if let contents {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("What's inside").font(.headline)
+                        Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 4) {
+                            ForEach(contents.entries) { entry in
+                                GridRow {
+                                    Image(systemName: entry.isDirectory ? "folder" : "doc").foregroundStyle(.secondary)
+                                    Text(entry.name).lineLimit(1).truncationMode(.middle)
+                                    Text(Format.bytes(entry.size)).monospacedDigit().foregroundStyle(.secondary)
+                                        .gridColumnAlignment(.trailing)
+                                    Text(Format.age(entry.modified)).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                        .font(.callout)
+                        if contents.more > 0 {
+                            Text("and \(contents.more) smaller item\(contents.more == 1 ? "" : "s")")
+                                .font(.caption).foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
                 if !crumb.secrets.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("Secret-looking files").font(.headline)
@@ -53,6 +76,13 @@ struct CrumbDetail: View {
             }
             .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .task(id: crumb.id) {
+            contents = nil
+            guard crumb.codexSessionID == nil else { return } // a chat is one file
+            let path = crumb.path
+            let found = await Task.detached(priority: .utility) { ContentsInspector.topLevel(of: path) }.value
+            if !Task.isCancelled, !found.entries.isEmpty { contents = found }
         }
     }
 

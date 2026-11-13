@@ -87,6 +87,25 @@ enum GitInspector {
         return FileManager.default.fileExists(atPath: main) ? main : nil
     }
 
+    /// The repository a path lives in. Worktrees resolve to the main
+    /// checkout, so everything an agent spread over ten checkouts of one
+    /// repository adds up under that repository.
+    static func project(of path: String) -> String? {
+        var directory = path
+        for _ in 0..<16 {
+            let dotGit = directory + "/.git"
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: dotGit, isDirectory: &isDir) {
+                if isDir.boolValue { return directory }
+                if isLinkedWorktree(directory) { return mainCheckout(of: directory) ?? directory }
+            }
+            let parent = (directory as NSString).deletingLastPathComponent
+            if parent == directory || parent == "/" || parent.isEmpty { return nil }
+            directory = parent
+        }
+        return nil
+    }
+
     static func defaultBranch(in directory: String) -> String? {
         let remoteHead = Shell.git(["symbolic-ref", "--quiet", "--short", "refs/remotes/origin/HEAD"], in: directory)
         if remoteHead.status == 0, !remoteHead.output.isEmpty { return remoteHead.output }

@@ -1,16 +1,21 @@
 import Foundation
 
-/// Chats that Claude Code started in Codex through the Codex plugin. Every
-/// review or rescue it hands over becomes a "Codex Companion Task: …" chat in
-/// Codex's list, and nobody opens them again.
+/// Codex chats no person started: the ones Claude Code opens through the
+/// Codex plugin (every review or rescue it hands over becomes a "Codex
+/// Companion Task: …" chat) and the transcripts `codex exec` leaves behind.
+/// Nobody opens them again.
 public enum CodexChats {
     public static let ruleID = "codex-companion-chat"
+    public static let execRuleID = "codex-exec-chat"
+    /// Who started a chat, as its header says → the rule that claims it.
+    static let rulesByOriginator = ["Claude Code": ruleID, "codex_exec": execRuleID]
     static let titlePrefix = "Codex Companion Task: "
 
     public struct Chat: Sendable {
         public var path: String
         public var sessionID: String
         public var title: String?
+        public var ruleID: String
     }
 
     /// `$CODEX_HOME`, else `~/.codex`, when it exists.
@@ -21,8 +26,8 @@ public enum CodexChats {
     }
 
     /// Walks `<home>/sessions/YYYY/MM/DD/rollout-*.jsonl` and keeps the ones
-    /// whose first line says Claude Code started them.
-    public static func find(home: String) -> [Chat] {
+    /// whose first line names a starter one of `ruleIDs` claims.
+    public static func find(home: String, ruleIDs: Set<String>) -> [Chat] {
         let titles = titles(home: home)
         var chats: [Chat] = []
         var stack = [home + "/sessions"]
@@ -33,8 +38,10 @@ public enum CodexChats {
                 guard entry.isRegularFile, name.hasPrefix("rollout-"), name.hasSuffix(".jsonl"),
                       let id = sessionID(fileName: name) else { return }
                 let path = directory + "/" + name
-                guard startedByClaudeCode(path) else { return }
-                chats.append(Chat(path: path, sessionID: id, title: titles[id]))
+                guard let header = header(of: path), let rule = rulesByOriginator[header.originator],
+                      ruleIDs.contains(rule) else { return }
+                let folder = header.cwd.map { "codex exec in " + ($0 as NSString).lastPathComponent }
+                chats.append(Chat(path: path, sessionID: id, title: titles[id] ?? folder, ruleID: rule))
             }
         }
         return chats
@@ -49,14 +56,24 @@ public enum CodexChats {
     }
 
     /// The session header is the first line and names who started the chat
-    /// before the long instructions text, so the first few KB are enough.
-    static func startedByClaudeCode(_ path: String) -> Bool {
-        guard let handle = FileHandle(forReadingAtPath: path) else { return false }
+    /// and where, before the long instructions text, so the first few KB are enough.
+    static func header(of path: String) -> (originator: String, cwd: String?)? {
+        guard let handle = FileHandle(forReadingAtPath: path) else { return nil }
         defer { try? handle.close() }
-        guard let data = try? handle.read(upToCount: 8_192) else { return false }
+        guard let data = try? handle.read(upToCount: 8_192) else { return nil }
         let head = String(decoding: data, as: UTF8.self)
-        let firstLine = head.prefix { $0 != "\n" }
-        return firstLine.contains("\"type\":\"session_meta\"") && firstLine.contains("\"originator\":\"Claude Code\"")
+        let firstLine = String(head.prefix { $0 != "\n" })
+        guard firstLine.contains("\"type\":\"session_meta\""),
+              let originator = value(of: "originator", in: firstLine) else { return nil }
+        return (originator, value(of: "cwd", in: firstLine))
+    }
+
+    /// `"key":"value"` out of a line that may be cut off mid-JSON. Good for
+    /// names and paths; does not unescape.
+    static func value(of key: String, in line: String) -> String? {
+        guard let start = line.range(of: "\"\(key)\":\"")?.upperBound,
+              let end = line[start...].firstIndex(of: "\"") else { return nil }
+        return String(line[start..<end])
     }
 
     /// Chat names as Codex shows them, from `session_index.jsonl`. Later lines win.

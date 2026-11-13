@@ -1,0 +1,10 @@
+{
+  "id": "claude-code-session-tmp",
+  "name": "Claude Code session scratch",
+  "category": "scratch",
+  "description": "A Claude Code session's temp folder under /private/tmp: its scratchpad and the output of background tasks. Nothing reads it once the session is over.",
+  "patterns": ["/private/tmp/claude-*/*/*-*-*-*-*"],
+  "regenerable": false,
+  "activity": "self",
+  "minIdleDays": 2
+}

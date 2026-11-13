@@ -19,7 +19,8 @@ enum DemoData {
             let rule = rules[ruleID]!
             return Crumb(path: path.hasPrefix("/") ? path : home + "/" + path, ruleID: rule.id, ruleName: rule.name,
                          category: rule.category, regenerable: rule.regenerable, size: size, fileCount: files,
-                         lastActivity: days(idle), worktree: worktree, secrets: secrets, processes: processes)
+                         lastActivity: days(idle), worktree: worktree, secrets: secrets, processes: processes,
+                         project: path.hasPrefix("Code/") ? home + "/" + path.split(separator: "/").prefix(2).joined(separator: "/") : nil)
         }
         func clean(_ branch: String, unmerged: Int = 0) -> WorktreeInfo {
             WorktreeInfo(commonDir: "", branch: branch, unmergedCommits: unmerged, defaultBranch: "origin/main")

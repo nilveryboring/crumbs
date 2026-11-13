@@ -16,15 +16,16 @@ public enum Trasher {
         let fm = FileManager.default
         var outcomes: [TrashOutcome] = []
         var repositoriesToPrune = Set<String>()
+        var chats: [(outcome: Int, sessionID: String)] = []
 
         for crumb in crumbs {
             let url = URL(fileURLWithPath: crumb.path)
             var resulting: NSURL?
             do {
                 try fm.trashItem(at: url, resultingItemURL: &resulting)
-                let forgotten = crumb.codexSessionID.map { CodexChats.forget(sessionID: $0, transcript: crumb.path) }
                 outcomes.append(TrashOutcome(path: crumb.path, trashedTo: resulting?.path, error: nil, freed: crumb.size,
-                                             forgotten: forgotten))
+                                             forgotten: nil))
+                if let id = crumb.codexSessionID { chats.append((outcomes.count - 1, id)) }
                 if let commonDir = crumb.worktree?.commonDir { repositoriesToPrune.insert(commonDir) }
                 let parent = url.deletingLastPathComponent()
                 if let pattern = crumb.emptyParentPattern, Glob(pattern).matches(parent.path) {
@@ -36,7 +37,28 @@ public enum Trasher {
             }
         }
 
+        // One codex process per chat; a few at a time keeps a thousand of them bearable.
+        let forgotten = ForgetResults(count: chats.count)
+        let jobs = chats.map { (sessionID: $0.sessionID, transcript: outcomes[$0.outcome].path) }
+        DispatchQueue.concurrentPerform(iterations: jobs.count) { index in
+            forgotten.set(index, CodexChats.forget(sessionID: jobs[index].sessionID, transcript: jobs[index].transcript))
+        }
+        for (index, chat) in chats.enumerated() { outcomes[chat.outcome].forgotten = forgotten.values[index] }
+
         for commonDir in repositoriesToPrune { GitInspector.pruneWorktrees(commonDir: commonDir) }
         return outcomes
+    }
+}
+
+private final class ForgetResults: @unchecked Sendable {
+    private let lock = NSLock()
+    private(set) var values: [Bool]
+
+    init(count: Int) { values = Array(repeating: false, count: count) }
+
+    func set(_ index: Int, _ value: Bool) {
+        lock.lock()
+        values[index] = value
+        lock.unlock()
     }
 }

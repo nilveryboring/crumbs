@@ -1,0 +1,10 @@
+{
+  "id": "codex-exec-chat",
+  "name": "Codex exec run",
+  "category": "chat",
+  "description": "Transcript of a `codex exec` run that a script or another agent started. Trashing it also takes it off Codex's chat list.",
+  "patterns": [],
+  "regenerable": false,
+  "activity": "self",
+  "minIdleDays": 1
+}
